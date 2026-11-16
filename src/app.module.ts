@@ -4,6 +4,7 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { UserModule } from './user/user.module';
+import { CloudModule } from './cloud/cloud.module';
 
 @Module({
 	imports: [
@@ -22,6 +23,7 @@ import { UserModule } from './user/user.module';
 			},
 		}),
 		UserModule,
+		CloudModule,
 	],
 	controllers: [AppController],
 	providers: [AppService],

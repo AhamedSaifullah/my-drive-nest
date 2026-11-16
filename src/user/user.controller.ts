@@ -36,6 +36,7 @@ export class UserController {
 	@Get('details')
 	@UseGuards(JwtAuthGuard)
 	details(@Req() request: AuthenticatedRequest) {
+		console.log('test from details');
 		return this.userService.details(request.user.sub);
 	}
 
