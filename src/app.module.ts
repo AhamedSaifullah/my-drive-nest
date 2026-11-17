@@ -8,10 +8,11 @@ import { UserModule } from './user/user.module';
 import { CloudModule } from './cloud/cloud.module';
 import { RequestLoggingMiddleware } from './common/middleware/request-logging.middleware';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
+import { validateEnvironment } from './config/env.validation';
 
 @Module({
 	imports: [
-		ConfigModule.forRoot({ isGlobal: true }),
+		ConfigModule.forRoot({ isGlobal: true, validate: validateEnvironment }),
 		ThrottlerModule.forRoot({
 			throttlers: [{ ttl: 60_000, limit: 100, blockDuration: 60_000 }],
 		}),

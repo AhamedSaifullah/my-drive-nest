@@ -3,6 +3,7 @@ import {
 	Injectable,
 	Logger,
 	NotFoundException,
+	UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
@@ -166,6 +167,61 @@ export class CloudService {
 		return this.accountModel.find({ userId: new Types.ObjectId(userId) }).select('-encryptedAccessToken -encryptedRefreshToken').lean().exec();
 	}
 
+	async getGoogleAccessToken(userId: string, accountId: string) {
+		if (!Types.ObjectId.isValid(accountId)) {
+			throw new BadRequestException('Invalid cloud account id');
+		}
+		const account = await this.accountModel.findOne({
+			_id: new Types.ObjectId(accountId),
+			userId: new Types.ObjectId(userId),
+			provider: 'google',
+		}).exec();
+		if (!account) throw new NotFoundException('Google Drive account not found');
+		if (account.status !== 'active') {
+			throw new UnauthorizedException('Google Drive account needs reauthorization');
+		}
+
+		const refreshWindowMs = 60 * 1000;
+		if (
+			account.expiresAt &&
+			account.expiresAt.getTime() > Date.now() + refreshWindowMs &&
+			account.encryptedAccessToken
+		) {
+			return this.tokenEncryption.decrypt(account.encryptedAccessToken);
+		}
+
+		if (!account.encryptedRefreshToken) {
+			await this.markGoogleAccountNeedsReauth(account._id);
+			throw new UnauthorizedException('Google Drive account needs reauthorization');
+		}
+
+		try {
+			const tokens = await this.refreshGoogleToken(
+				this.tokenEncryption.decrypt(account.encryptedRefreshToken),
+			);
+			const encryptedAccessToken = this.tokenEncryption.encrypt(tokens.access_token);
+			await this.accountModel.updateOne(
+				{ _id: account._id, userId: new Types.ObjectId(userId), provider: 'google' },
+				{
+					$set: {
+						encryptedAccessToken: encryptedAccessToken.ciphertext,
+						tokenKeyVersion: encryptedAccessToken.keyVersion,
+						expiresAt: new Date(Date.now() + (tokens.expires_in ?? 3600) * 1000),
+						status: 'active',
+					},
+				},
+			).exec();
+			return tokens.access_token;
+		} catch (cause) {
+			await this.markGoogleAccountNeedsReauth(account._id);
+			this.logger.warn(JSON.stringify({
+				event: 'google.oauth.refresh_failed',
+				error: cause instanceof Error ? cause.name : 'UnknownError',
+			}));
+			throw new UnauthorizedException('Google Drive account needs reauthorization');
+		}
+	}
+
 	async unlinkGoogle(userId: string) {
 		const account = await this.accountModel.findOne({ userId: new Types.ObjectId(userId), provider: 'google' }).exec();
 		if (!account) throw new NotFoundException('Google Drive account not found');
@@ -214,6 +270,30 @@ export class CloudService {
 		const result = await fetch('https://oauth2.googleapis.com/token', { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ code, client_id: this.config.getOrThrow<string>('GOOGLE_CLIENT_ID'), client_secret: this.config.getOrThrow<string>('GOOGLE_CLIENT_SECRET'), redirect_uri: this.config.getOrThrow<string>('GOOGLE_REDIRECT_URI'), grant_type: 'authorization_code' }) });
 		if (!result.ok) throw new BadRequestException('Google token exchange failed');
 		return (await result.json()) as GoogleTokenResponse;
+	}
+
+	private async refreshGoogleToken(refreshToken: string) {
+		const result = await fetch('https://oauth2.googleapis.com/token', {
+			method: 'POST',
+			headers: { 'content-type': 'application/x-www-form-urlencoded' },
+			body: new URLSearchParams({
+				client_id: this.config.getOrThrow<string>('GOOGLE_CLIENT_ID'),
+				client_secret: this.config.getOrThrow<string>('GOOGLE_CLIENT_SECRET'),
+				refresh_token: refreshToken,
+				grant_type: 'refresh_token',
+			}),
+		});
+		if (!result.ok) throw new BadRequestException('Google token refresh failed');
+		const tokens = (await result.json()) as GoogleTokenResponse;
+		if (!tokens.access_token) throw new BadRequestException('Google access token was not returned');
+		return tokens;
+	}
+
+	private async markGoogleAccountNeedsReauth(accountId: Types.ObjectId) {
+		await this.accountModel.updateOne(
+			{ _id: accountId, provider: 'google' },
+			{ $set: { status: 'needs_reauth' } },
+		).exec();
 	}
 
 	private async googleFetch<T>(url: string, accessToken: string) {

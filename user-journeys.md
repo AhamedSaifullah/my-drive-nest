@@ -174,11 +174,11 @@ sequenceDiagram
 - **Actor and goal:** User restores cloud access after Google invalidates a token.
 - **Preconditions:** A linked account exists; sync/token use is available.
 - **Trigger:** Provider returns an expired/revoked-token response.
-- **Happy path:** PLANNED sync logic detects the failure, refreshes with the encrypted refresh token when possible, or marks the account for re-link; Flutter shows a reconnect action; user repeats J06.
-- **Alternate and failure paths:** Current backend has no token decryption, refresh, or sync path, so no automatic recovery exists yet.
-- **Postconditions:** PLANNED active token or explicit re-link state.
+- **Happy path:** A cloud operation calls the provider-token helper; Nest reuses a still-valid decrypted access token or exchanges the encrypted refresh token for a new access token and stores the replacement encrypted; the cloud operation continues.
+- **Alternate and failure paths:** If the refresh token is missing, invalid, or revoked, Nest marks the account `needs_reauth` and returns `401`; Flutter shows a reconnect action and the user repeats the Google linking journey.
+- **Postconditions:** The account has a refreshed active token, or an explicit `needs_reauth` state.
 - **Security notes:** Refresh tokens must never be sent to Flutter.
-- **Status:** PLANNED
+- **Status:** PARTIAL — refresh helper implemented; sync integration and Flutter reconnect UI remain planned.
 
 ## 14. Initial sync and classification
 

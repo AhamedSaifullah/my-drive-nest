@@ -180,7 +180,7 @@ erDiagram
     string encryptedAccessToken
     string encryptedRefreshToken
     date expiresAt
-    string status "active, unlinked, or revoked"
+    string status "active, needs_reauth, unlinked, or revoked"
     date createdAt
     date updatedAt
   }
@@ -279,7 +279,7 @@ Unlinking revokes the Google grant when possible, deletes synced `files`, marks 
 - Missing, expired, incorrectly signed, wrong-purpose, or replayed state redirects to the deep link with `error=invalid_state`.
 - A Google response without a refresh token is rejected. With `prompt=consent` and offline access, Google is expected to return one, but the provider may still omit it.
 - A repeated link for the same My Drive user and provider upserts the account. A different Google subject replaces the current user/provider record only if the account-level uniqueness constraints permit it; account ownership conflicts should be handled explicitly in a hardened implementation.
-- Provider revocation and Google provider-token refresh are not yet implemented. This is separate from My Drive's `/auth/refresh`, which rotates My Drive session refresh tokens. Sync must later refresh provider credentials using the encrypted Google refresh token and mark the account for re-link when that fails.
+- Google provider-token refresh is implemented in `CloudService.getGoogleAccessToken`: cached access tokens are reused until they are within 60 seconds of expiry, then the encrypted refresh token is exchanged and the new access token is encrypted and saved. A failed refresh marks the account `needs_reauth`; this is separate from My Drive's `/auth/refresh`, which rotates My Drive session refresh tokens.
 - Deep-link delivery depends on Flutter platform registration. The backend cannot confirm that the app received the redirect.
 
 ## 11. Scalability and production hardening

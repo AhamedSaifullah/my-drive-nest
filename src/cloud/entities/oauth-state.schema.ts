@@ -14,7 +14,7 @@ export class OAuthState {
 	@Prop({ required: true, enum: ['google-link'], index: true })
 	purpose!: 'google-link';
 
-	@Prop({ required: true, type: Date, index: true })
+	@Prop({ required: true, type: Date })
 	expiresAt!: Date;
 }
 

@@ -32,8 +32,8 @@ export class CloudAccount {
 	@Prop({ type: Date })
 	expiresAt?: Date;
 
-	@Prop({ required: true, enum: ['active', 'unlinked', 'revoked'], default: 'active' })
-	status!: 'active' | 'unlinked' | 'revoked';
+	@Prop({ required: true, enum: ['active', 'needs_reauth', 'unlinked', 'revoked'], default: 'active' })
+	status!: 'active' | 'needs_reauth' | 'unlinked' | 'revoked';
 }
 
 export const CloudAccountSchema = SchemaFactory.createForClass(CloudAccount);
