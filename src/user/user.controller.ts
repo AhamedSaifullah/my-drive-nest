@@ -14,6 +14,7 @@ import type { AuthenticatedRequest } from './jwt-auth.guard';
 import { TokenBlacklistService } from './token-blacklist.service';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UserService } from './user.service';
+import { Throttle } from '@nestjs/throttler';
 
 @Controller('user')
 export class UserController {
@@ -23,12 +24,14 @@ export class UserController {
 	) {}
 
 	@Post('create-user')
+	@Throttle({ default: { limit: 5, ttl: 60_000, blockDuration: 60_000 } })
 	createUser(@Body() createUserDto: CreateUserDto) {
 		console.log('test from register');
 		return this.userService.create(createUserDto);
 	}
 
 	@Post('login-user')
+	@Throttle({ default: { limit: 5, ttl: 60_000, blockDuration: 60_000 } })
 	loginUser(@Body() loginUserDto: LoginUserDto) {
 		return this.userService.login(loginUserDto);
 	}
@@ -51,6 +54,7 @@ export class UserController {
 
 	@Post('logout')
 	@UseGuards(JwtAuthGuard)
+	@Throttle({ default: { limit: 10, ttl: 60_000, blockDuration: 60_000 } })
 	async logout(@Req() request: AuthenticatedRequest) {
 		console.log('test from logout');
 		this.tokenBlacklistService.revoke(request.authToken);

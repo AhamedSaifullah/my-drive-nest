@@ -105,7 +105,29 @@ sequenceDiagram
 
 The current nonce store is an in-memory `Map`. It works only when the link request and callback reach the same running process. A Redis-backed state store is required for multiple instances.
 
-## 5. Security design
+## 5. Observability and error handling
+
+`GlobalExceptionFilter` is registered globally in `main.ts`. It converts handled and unhandled exceptions into a consistent JSON response:
+
+```json
+{
+  "statusCode": 401,
+  "error": "Unauthorized",
+  "message": "invalid or expired token",
+  "path": "/cloud/google/accounts",
+  "method": "GET",
+  "timestamp": "2026-11-17T00:00:00.000Z",
+  "requestId": "generated-uuid"
+}
+```
+
+Unexpected exceptions return a generic `500 Internal Server Error` message. The filter logs only structured metadata: event, request ID, method, path, status, and exception class. It does not log request bodies, headers, query strings, tokens, passwords, or stack traces.
+
+`RequestLoggingMiddleware` generates an `x-request-id` for every request, returns it in the response header, and emits a structured completion event containing method, path, status code, and duration. It deliberately uses `request.path` rather than the full URL so OAuth `code` and `state` query parameters are not logged.
+
+The current controllers still contain a few development `console.log` statements; these should be removed before production. The global filter and middleware themselves do not log secrets.
+
+## 6. Security design
 
 ### Provider tokens
 
@@ -125,7 +147,7 @@ The signed state contains the authenticated My Drive user ID, a random nonce, an
 
 Never log authorization URLs containing sensitive state, authorization codes, access tokens, refresh tokens, client secrets, or encryption keys. The current application still contains some development `console.log` statements in user/cloud controllers; these should be removed or replaced with structured, redacted logging before production.
 
-## 6. Data model
+## 7. Data model
 
 ```mermaid
 erDiagram
@@ -196,7 +218,7 @@ Implemented indexes:
 
 The `files` collection is referenced rather than embedded because a user's file set is unbounded and must be queried independently of the account document.
 
-## 7. API reference
+## 8. API reference
 
 | Method | Path | Auth | Request | Success response | Main errors |
 |---|---|---|---|---|---|
@@ -213,7 +235,7 @@ The `files` collection is referenced rather than embedded because a user's file 
 
 The current unlink operation only changes `status` to `revoked`. It does not call Google's token-revocation endpoint and does not delete synced files.
 
-## 8. Configuration reference
+## 9. Configuration reference
 
 | Variable | Required | Meaning |
 |---|---:|---|
@@ -229,7 +251,7 @@ The current unlink operation only changes `status` to `revoked`. It does not cal
 
 `.env.example` is a template. Runtime values must be in `.env` locally or in the deployment provider's environment settings. Never commit real client secrets or encryption keys.
 
-## 9. Error handling and edge cases
+## 10. Error handling and edge cases
 
 - Missing or malformed bearer credentials return `401`.
 - A blacklisted token returns `401`.
@@ -242,7 +264,7 @@ The current unlink operation only changes `status` to `revoked`. It does not cal
 - Provider revocation and Google provider-token refresh are not yet implemented. This is separate from My Drive's `/auth/refresh`, which rotates My Drive session refresh tokens. Sync must later refresh provider credentials using the encrypted Google refresh token and mark the account for re-link when that fails.
 - Deep-link delivery depends on Flutter platform registration. The backend cannot confirm that the app received the redirect.
 
-## 10. Scalability and production hardening
+## 11. Scalability and production hardening
 
 Before production:
 
@@ -259,7 +281,7 @@ Before production:
 11. Add database cascade/cleanup workflows for account deletion and unlinking.
 12. Use separate Google Cloud projects/credentials for development, staging, and production.
 
-## 11. Roadmap
+## 12. Roadmap
 
 ### PLANNED
 
@@ -276,7 +298,7 @@ Before production:
 - Account deletion and data cleanup.
 - Google production verification and app publishing.
 
-## 12. Local development
+## 13. Local development
 
 1. Copy the required variables into `.env`; do not rely on `.env.example`.
 2. Start MongoDB and NestJS on port `3000`.
