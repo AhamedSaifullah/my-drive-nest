@@ -162,11 +162,11 @@ sequenceDiagram
 - **Actor and goal:** User stops using a linked Google account.
 - **Preconditions:** Valid JWT.
 - **Trigger:** User taps unlink.
-- **Happy path:** Flutter calls `POST /cloud/google/unlink`; Nest sets the matching account status to `revoked`; Flutter removes it from the connected list.
-- **Alternate and failure paths:** `401` requires login; missing account currently still returns a success message because the update result is not checked.
-- **Postconditions:** Account is marked revoked. Encrypted tokens and any files remain.
-- **Security notes:** Google token revocation and data deletion are not implemented.
-- **Status:** PARTIAL
+- **Happy path:** Flutter calls `DELETE /cloud/accounts/:id`; Nest verifies that the account belongs to the authenticated user, revokes the Google grant, deletes synced files, removes encrypted token fields, marks the account `unlinked`, and Flutter removes it from the connected list.
+- **Alternate and failure paths:** `400` means the account ID is invalid; `401` requires login; `404` means the account does not belong to the user or does not exist. If Google already reports the token as invalid, local cleanup still completes.
+- **Postconditions:** Account is marked unlinked, local provider tokens are removed, and synced files are deleted.
+- **Security notes:** Account ownership is checked before provider revocation or file deletion; provider tokens never reach Flutter or logs.
+- **Status:** IMPLEMENTED
 
 ## 13. Provider token expired or revoked
 

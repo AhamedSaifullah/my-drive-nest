@@ -2,6 +2,7 @@ import {
 	BadRequestException,
 	Injectable,
 	Logger,
+	NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
@@ -10,6 +11,7 @@ import { Model, Types } from 'mongoose';
 import { createHash, randomBytes } from 'node:crypto';
 import { Response } from 'express';
 import { CloudAccount, CloudAccountDocument } from './entities/cloud-account.schema';
+import { CloudFile, FileDocument } from './entities/file.schema';
 import { OAuthState, OAuthStateDocument } from './entities/oauth-state.schema';
 import { TokenEncryptionService } from './token-encryption.service';
 
@@ -35,6 +37,8 @@ export class CloudService {
 		private readonly accountModel: Model<CloudAccountDocument>,
 		@InjectModel(OAuthState.name)
 		private readonly oauthStateModel: Model<OAuthStateDocument>,
+		@InjectModel(CloudFile.name)
+		private readonly fileModel: Model<FileDocument>,
 		private readonly config: ConfigService,
 		private readonly jwtService: JwtService,
 		private readonly tokenEncryption: TokenEncryptionService,
@@ -163,7 +167,46 @@ export class CloudService {
 	}
 
 	async unlinkGoogle(userId: string) {
-		await this.accountModel.updateOne({ userId: new Types.ObjectId(userId), provider: 'google' }, { $set: { status: 'revoked' } }).exec();
+		const account = await this.accountModel.findOne({ userId: new Types.ObjectId(userId), provider: 'google' }).exec();
+		if (!account) throw new NotFoundException('Google Drive account not found');
+		return this.unlinkGoogleAccount(userId, account._id.toString());
+	}
+
+	async unlinkGoogleAccount(userId: string, accountId: string) {
+		if (!Types.ObjectId.isValid(accountId)) {
+			throw new BadRequestException('Invalid cloud account id');
+		}
+		const account = await this.accountModel.findOne({
+			_id: new Types.ObjectId(accountId),
+			userId: new Types.ObjectId(userId),
+			provider: 'google',
+		}).exec();
+		if (!account) throw new NotFoundException('Google Drive account not found');
+
+		if (account.encryptedRefreshToken) {
+			try {
+				const refreshToken = this.tokenEncryption.decrypt(account.encryptedRefreshToken);
+				await this.revokeGoogleToken(refreshToken);
+			} catch (cause) {
+				this.logger.warn(JSON.stringify({
+					event: 'google.oauth.revoke_failed',
+					error: cause instanceof Error ? cause.name : 'UnknownError',
+				}));
+			}
+		}
+
+		await this.fileModel.deleteMany({ cloudAccountId: account._id }).exec();
+		await this.accountModel.updateOne(
+			{ _id: account._id, userId: new Types.ObjectId(userId) },
+			{
+				$set: { status: 'unlinked' },
+				$unset: {
+					encryptedAccessToken: 1,
+					encryptedRefreshToken: 1,
+					tokenKeyVersion: 1,
+				},
+			},
+		).exec();
 		return { message: 'Google Drive unlinked' };
 	}
 
@@ -177,6 +220,17 @@ export class CloudService {
 		const result = await fetch(url, { headers: { authorization: `Bearer ${accessToken}` } });
 		if (!result.ok) throw new BadRequestException('Google profile lookup failed');
 		return (await result.json()) as T;
+	}
+
+	private async revokeGoogleToken(token: string) {
+		const result = await fetch('https://oauth2.googleapis.com/revoke', {
+			method: 'POST',
+			headers: { 'content-type': 'application/x-www-form-urlencoded' },
+			body: new URLSearchParams({ token }),
+		});
+		if (!result.ok && result.status !== 400) {
+			throw new BadRequestException('Google token revocation failed');
+		}
 	}
 
 	private hashNonce(nonce: string) {

@@ -20,20 +20,20 @@ export class CloudAccount {
 	@Prop({ required: true, trim: true })
 	displayName!: string;
 
-	@Prop({ required: true })
+	@Prop()
 	encryptedAccessToken!: string;
 
-	@Prop({ required: true })
+	@Prop()
 	encryptedRefreshToken!: string;
 
-	@Prop({ required: true })
+	@Prop()
 	tokenKeyVersion!: string;
 
 	@Prop({ type: Date })
 	expiresAt?: Date;
 
-	@Prop({ required: true, enum: ['active', 'revoked'], default: 'active' })
-	status!: 'active' | 'revoked';
+	@Prop({ required: true, enum: ['active', 'unlinked', 'revoked'], default: 'active' })
+	status!: 'active' | 'unlinked' | 'revoked';
 }
 
 export const CloudAccountSchema = SchemaFactory.createForClass(CloudAccount);

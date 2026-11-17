@@ -15,7 +15,7 @@ Test coverage is marked `unknown` because no test execution or coverage report w
 | J09 | Denial/expired/replayed state | `GET /cloud/google/callback` | `oauth_states` atomically consumed | IMPLEMENTED | unknown |
 | J10 | Link same Google account twice | Same as J08 | `cloud_accounts` upsert | IMPLEMENTED, conflict handling partial | unknown |
 | J11 | List linked accounts | `GET /cloud/google/accounts` | `cloud_accounts` read | IMPLEMENTED | unknown |
-| J12 | Unlink Google account | `POST /cloud/google/unlink` | `cloud_accounts` status update | PARTIAL | unknown |
+| J12 | Unlink Google account | `DELETE /cloud/accounts/:id` (legacy `POST /cloud/google/unlink`) | `cloud_accounts` update; `files` delete | IMPLEMENTED | unknown |
 | J13 | Expired/revoked provider token | No current endpoint; future sync/re-link | `cloud_accounts` planned update | PLANNED | unknown |
 | J14 | Initial sync/classification | No current endpoint; future worker | `cloud_accounts` read; `files` write | PLANNED | unknown |
 | J15 | Browse by category | `GET /files?category=&page=` planned | `files` read | PLANNED | unknown |
@@ -36,4 +36,4 @@ Test coverage is marked `unknown` because no test execution or coverage report w
 | POST | `/cloud/google/link` | Create Google authorization URL |
 | GET | `/cloud/google/callback` | Verify state, exchange code, encrypt and save tokens |
 | GET | `/cloud/google/accounts` | List linked cloud account metadata |
-| POST | `/cloud/google/unlink` | Mark Google account revoked |
+| DELETE | `/cloud/accounts/:id` | Revoke Google grant and remove local account/files |

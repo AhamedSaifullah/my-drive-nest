@@ -175,10 +175,12 @@ erDiagram
     ObjectId userId FK
     string provider "google"
     string providerAccountId
+    string email
+    string displayName
     string encryptedAccessToken
     string encryptedRefreshToken
     date expiresAt
-    string status "active or revoked"
+    string status "active, unlinked, or revoked"
     date createdAt
     date updatedAt
   }
@@ -246,8 +248,9 @@ The `files` collection is referenced rather than embedded because a user's file 
 | GET | `/cloud/google/callback` | Public Google callback | `code`, `state`, or `error` query parameters | `302` to `CLOUD_DEEP_LINK` | Redirects with `error=invalid_state`, `error=access_denied`, or `error=link_failed` |
 | GET | `/cloud/google/accounts` | Bearer JWT | None | Account metadata without encrypted token fields | `401` |
 | POST | `/cloud/google/unlink` | Bearer JWT | None | `{ message: "Google Drive unlinked" }` | `401` |
+| DELETE | `/cloud/accounts/:id` | Bearer JWT | Cloud account ID in the path | `{ message: "Google Drive unlinked" }` | `400` invalid ID; `401`; `404` account not found |
 
-The current unlink operation only changes `status` to `revoked`. It does not call Google's token-revocation endpoint and does not delete synced files.
+Unlinking revokes the Google grant when possible, deletes synced `files`, marks the account `unlinked`, and removes locally stored encrypted token fields. The legacy `POST /cloud/google/unlink` route uses the same cleanup flow for the user's Google account.
 
 ## 9. Configuration reference
 

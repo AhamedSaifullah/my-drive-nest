@@ -3,6 +3,7 @@ import { ConfigModule } from '@nestjs/config';
 import { MongooseModule } from '@nestjs/mongoose';
 import { UserModule } from '../user/user.module';
 import { CloudController } from './cloud.controller';
+import { CloudAccountsController } from './cloud-accounts.controller';
 import { CloudService } from './cloud.service';
 import { CloudAccount, CloudAccountSchema } from './entities/cloud-account.schema';
 import { CloudFile, CloudFileSchema } from './entities/file.schema';
@@ -19,7 +20,7 @@ import { TokenEncryptionService } from './token-encryption.service';
 			{ name: OAuthState.name, schema: OAuthStateSchema },
 		]),
 	],
-	controllers: [CloudController],
+	controllers: [CloudController, CloudAccountsController],
 	providers: [CloudService, TokenEncryptionService],
 })
 export class CloudModule {}
