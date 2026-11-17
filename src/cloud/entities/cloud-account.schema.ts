@@ -14,11 +14,20 @@ export class CloudAccount {
 	@Prop({ required: true })
 	providerAccountId!: string;
 
+	@Prop({ required: true, trim: true })
+	email!: string;
+
+	@Prop({ required: true, trim: true })
+	displayName!: string;
+
 	@Prop({ required: true })
 	encryptedAccessToken!: string;
 
 	@Prop({ required: true })
 	encryptedRefreshToken!: string;
+
+	@Prop({ required: true })
+	tokenKeyVersion!: string;
 
 	@Prop({ type: Date })
 	expiresAt?: Date;

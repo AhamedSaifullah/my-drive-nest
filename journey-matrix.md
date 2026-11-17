@@ -12,7 +12,7 @@ Test coverage is marked `unknown` because no test execution or coverage report w
 | J06 | Refresh access token | `POST /auth/refresh` | `refresh_sessions` read/write; `users` read | IMPLEMENTED | unknown |
 | J07 | Refresh-token reuse detection | `POST /auth/refresh` | `refresh_sessions` family revocation | IMPLEMENTED | unknown |
 | J08 | Link Google Drive | `POST /cloud/google/link`; Google callback `GET /cloud/google/callback`; `GET /cloud/google/accounts` | `cloud_accounts` write/read | IMPLEMENTED | unknown |
-| J09 | Denial/expired/replayed state | `GET /cloud/google/callback` | None on failure; in-memory nonce consumed | IMPLEMENTED | unknown |
+| J09 | Denial/expired/replayed state | `GET /cloud/google/callback` | `oauth_states` atomically consumed | IMPLEMENTED | unknown |
 | J10 | Link same Google account twice | Same as J08 | `cloud_accounts` upsert | IMPLEMENTED, conflict handling partial | unknown |
 | J11 | List linked accounts | `GET /cloud/google/accounts` | `cloud_accounts` read | IMPLEMENTED | unknown |
 | J12 | Unlink Google account | `POST /cloud/google/unlink` | `cloud_accounts` status update | PARTIAL | unknown |

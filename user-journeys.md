@@ -93,11 +93,11 @@
 - **Preconditions:** JWT valid; Google OAuth variables configured; callback publicly reachable over HTTPS; user is an approved Google test user while the app is in testing.
 - **Trigger:** User taps Link Google Drive.
 - **Happy path:**
-  1. Flutter calls `POST /cloud/google/link` with the JWT; Nest creates a signed ten-minute state containing user ID, purpose, and random nonce, stores the nonce in memory, and returns the authorization URL.
+  1. Flutter calls `POST /cloud/google/link` with the JWT; Nest creates a signed ten-minute state containing user ID, purpose, and random nonce, stores only the nonce hash in `oauth_states`, and returns the authorization URL.
   2. Flutter opens the URL in the system browser; Google displays account selection and consent. No database write occurs yet.
   3. Google calls `GET /cloud/google/callback?code&state`; Nest verifies and consumes state, exchanges the code, reads the Google subject from userinfo, encrypts access/refresh tokens, and upserts `cloud_accounts`.
   4. Nest redirects to `mydrive://linked?provider=google`; Flutter returns to the foreground and calls `GET /cloud/google/accounts` to refresh the dashboard.
-- **Alternate and failure paths:** Missing config returns a server error; callback state errors return `401`; Google exchange/profile errors fail linking; Flutter shows a link failure.
+- **Alternate and failure paths:** Missing config returns a server error; callback state errors redirect with `error=invalid_state`; Google exchange/profile errors redirect with `error=link_failed`; Flutter shows a link failure.
 - **Postconditions:** An active Google account record exists; file records are not yet synchronized.
 - **Security notes:** Google tokens remain server-side and encrypted.
 - **Status:** IMPLEMENTED
@@ -127,7 +127,7 @@ sequenceDiagram
 - **Preconditions:** A link URL was generated.
 - **Trigger:** User denies consent, waits beyond ten minutes, or retries a callback URL.
 - **Happy path:** For denial, Google calls the callback with `error=access_denied`; Nest verifies valid state, consumes the nonce, redirects with an error, and Flutter shows that linking was cancelled.
-- **Alternate and failure paths:** Expired, malformed, wrong-purpose, or replayed state returns `401`; no token or account is written. Flutter shows a retry option.
+- **Alternate and failure paths:** Expired, malformed, wrong-purpose, or replayed state redirects with `error=invalid_state`; no token or account is written. Flutter shows a retry option.
 - **Postconditions:** No Google account is linked for the failed attempt.
 - **Security notes:** State is checked before processing both success and denial.
 - **Status:** IMPLEMENTED

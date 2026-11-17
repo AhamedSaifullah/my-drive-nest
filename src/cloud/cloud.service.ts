@@ -1,17 +1,17 @@
 import {
 	BadRequestException,
 	Injectable,
-	InternalServerErrorException,
 	Logger,
-	UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
-import { createCipheriv, randomBytes } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import { Response } from 'express';
 import { CloudAccount, CloudAccountDocument } from './entities/cloud-account.schema';
+import { OAuthState, OAuthStateDocument } from './entities/oauth-state.schema';
+import { TokenEncryptionService } from './token-encryption.service';
 
 type GoogleTokenResponse = {
 	access_token: string;
@@ -20,24 +20,35 @@ type GoogleTokenResponse = {
 	token_type?: string;
 };
 
-type GoogleProfile = { sub?: string };
+type GoogleProfile = {
+	sub?: string;
+	email?: string;
+	name?: string;
+};
 
 @Injectable()
 export class CloudService {
 	private readonly logger = new Logger(CloudService.name);
-	private readonly pendingNonces = new Map<string, number>();
 
 	constructor(
 		@InjectModel(CloudAccount.name)
 		private readonly accountModel: Model<CloudAccountDocument>,
+		@InjectModel(OAuthState.name)
+		private readonly oauthStateModel: Model<OAuthStateDocument>,
 		private readonly config: ConfigService,
 		private readonly jwtService: JwtService,
+		private readonly tokenEncryption: TokenEncryptionService,
 	) {}
 
 	async createGoogleAuthorizationUrl(userId: string) {
 		this.requireGoogleConfig();
 		const nonce = randomBytes(24).toString('hex');
-		this.pendingNonces.set(nonce, Date.now() + 10 * 60 * 1000);
+		await this.oauthStateModel.create({
+			userId: new Types.ObjectId(userId),
+			nonceHash: this.hashNonce(nonce),
+			purpose: 'google-link',
+			expiresAt: new Date(Date.now() + 10 * 60 * 1000),
+		});
 		const state = await this.jwtService.signAsync(
 			{ sub: userId, nonce, purpose: 'google-link' },
 			{ expiresIn: '10m' },
@@ -60,7 +71,7 @@ export class CloudService {
 		error: string | undefined,
 		response: Response,
 	) {
-		if (!state) throw new BadRequestException('state is required');
+		if (!state) return this.redirectError(response, 'invalid_state');
 
 		let payload: { sub: string; nonce: string; purpose: string };
 		try {
@@ -70,15 +81,46 @@ export class CloudService {
 				purpose: string;
 			}>(state);
 		} catch {
-			throw new UnauthorizedException('invalid or expired OAuth state');
+			this.logger.warn(
+				JSON.stringify({
+					event: 'google.oauth.state_rejected',
+					reason: 'invalid_signature_or_expired',
+				}),
+			);
+			return this.redirectError(response, 'invalid_state');
 		}
-		const expiry = this.pendingNonces.get(payload.nonce);
-		this.pendingNonces.delete(payload.nonce);
-		if (payload.purpose !== 'google-link' || !expiry || expiry < Date.now()) {
-			throw new UnauthorizedException('invalid or already-used OAuth state');
+		if (
+			!payload.sub ||
+			!payload.nonce ||
+			payload.purpose !== 'google-link' ||
+			!Types.ObjectId.isValid(payload.sub)
+		) {
+			return this.redirectError(response, 'invalid_state');
 		}
-		if (error) return this.redirect(response, `error=${encodeURIComponent(error)}`);
-		if (!code) throw new BadRequestException('code is required');
+
+		let consumedState: OAuthStateDocument | null;
+		try {
+			consumedState = await this.oauthStateModel
+				.findOneAndDelete({
+					userId: new Types.ObjectId(payload.sub),
+					nonceHash: this.hashNonce(payload.nonce),
+					purpose: 'google-link',
+					expiresAt: { $gt: new Date() },
+				})
+				.exec();
+		} catch {
+			this.logger.error(
+				JSON.stringify({
+					event: 'google.oauth.state_store_failed',
+				}),
+			);
+			return this.redirectError(response, 'link_failed');
+		}
+		if (!consumedState) {
+			return this.redirectError(response, 'invalid_state');
+		}
+		if (error) return this.redirectError(response, this.oauthErrorCode(error));
+		if (!code) return this.redirectError(response, 'missing_code');
 
 		try {
 			const tokens = await this.exchangeCode(code);
@@ -86,22 +128,33 @@ export class CloudService {
 				throw new BadRequestException('Google did not return a refresh token');
 			}
 			const profile = await this.googleFetch<GoogleProfile>('https://openidconnect.googleapis.com/v1/userinfo', tokens.access_token);
-			if (!profile.sub) throw new BadRequestException('Google account id was not returned');
+			if (!profile.sub || !profile.email || !profile.name) {
+				throw new BadRequestException('Google account identity was not returned');
+			}
+			const encryptedAccessToken = this.tokenEncryption.encrypt(tokens.access_token);
+			const encryptedRefreshToken = this.tokenEncryption.encrypt(tokens.refresh_token);
 			await this.accountModel.findOneAndUpdate(
 				{ userId: new Types.ObjectId(payload.sub), provider: 'google' },
 				{
 					userId: new Types.ObjectId(payload.sub), provider: 'google', providerAccountId: profile.sub,
-					encryptedAccessToken: this.encrypt(tokens.access_token),
-					encryptedRefreshToken: this.encrypt(tokens.refresh_token),
+					email: profile.email,
+					displayName: profile.name,
+					encryptedAccessToken: encryptedAccessToken.ciphertext,
+					encryptedRefreshToken: encryptedRefreshToken.ciphertext,
+					tokenKeyVersion: encryptedAccessToken.keyVersion,
 					expiresAt: new Date(Date.now() + (tokens.expires_in ?? 3600) * 1000), status: 'active',
 				},
 				{ upsert: true, new: true, setDefaultsOnInsert: true },
 			).exec();
 			return this.redirect(response, 'provider=google');
 		} catch (cause) {
-			this.logger.error(`Google callback failed: ${cause instanceof Error ? cause.message : 'unknown error'}`);
-			if (cause instanceof BadRequestException) throw cause;
-			return this.redirect(response, 'error=link_failed');
+			this.logger.error(
+				JSON.stringify({
+					event: 'google.oauth.callback_failed',
+					error: cause instanceof Error ? cause.name : 'UnknownError',
+				}),
+			);
+			return this.redirectError(response, 'link_failed');
 		}
 	}
 
@@ -126,28 +179,24 @@ export class CloudService {
 		return (await result.json()) as T;
 	}
 
-	private encrypt(value: string) {
-		const key = this.encryptionKey();
-		const iv = randomBytes(12);
-		const cipher = createCipheriv('aes-256-gcm', key, iv);
-		const encrypted = Buffer.concat([cipher.update(value, 'utf8'), cipher.final()]);
-		return [iv.toString('base64url'), cipher.getAuthTag().toString('base64url'), encrypted.toString('base64url')].join('.');
-	}
-
-	private encryptionKey() {
-		const encoded = this.config.get<string>('CLOUD_TOKEN_ENCRYPTION_KEY');
-		if (!encoded) throw new InternalServerErrorException('CLOUD_TOKEN_ENCRYPTION_KEY is required');
-		const key = Buffer.from(encoded, 'base64url');
-		if (key.length !== 32) throw new InternalServerErrorException('CLOUD_TOKEN_ENCRYPTION_KEY must decode to 32 bytes');
-		return key;
+	private hashNonce(nonce: string) {
+		return createHash('sha256').update(nonce).digest('hex');
 	}
 
 	private requireGoogleConfig() {
-		for (const name of ['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', 'GOOGLE_REDIRECT_URI', 'CLOUD_TOKEN_ENCRYPTION_KEY']) this.config.getOrThrow<string>(name);
+		for (const name of ['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', 'GOOGLE_REDIRECT_URI', 'CLOUD_TOKEN_ENCRYPTION_KEY', 'CLOUD_TOKEN_ENCRYPTION_KEY_VERSION']) this.config.getOrThrow<string>(name);
 	}
 
 	private redirect(response: Response, query: string) {
 		const deepLink = this.config.get<string>('CLOUD_DEEP_LINK') ?? 'mydrive://linked';
 		return response.redirect(`${deepLink}?${query}`);
+	}
+
+	private redirectError(response: Response, errorCode: string) {
+		return this.redirect(response, `error=${encodeURIComponent(errorCode)}`);
+	}
+
+	private oauthErrorCode(error: string) {
+		return error === 'access_denied' ? 'access_denied' : 'oauth_error';
 	}
 }

@@ -28,7 +28,7 @@ flowchart LR
   Queue -.-> Mongo
 ```
 
-The current implementation covers registration, login, profile operations, logout, Google account linking, account listing, unlinking, encryption, and the file schema. File synchronization, file APIs, provider refresh, Redis, and BullMQ are planned.
+The current implementation covers registration, login, profile operations, logout, Google account linking, account listing, unlinking, encryption, the OAuth state store, and the file schema. File synchronization, file APIs, provider refresh, Redis, and BullMQ are planned.
 
 ## 2. Module and responsibility map
 
@@ -40,7 +40,9 @@ The current implementation covers registration, login, profile operations, logou
 | `TokenBlacklistService` | In-memory revoked-token set | IMPLEMENTED, single-instance only |
 | `CloudModule` | Cloud controller, service, account and file models | IMPLEMENTED |
 | `CloudController` | Google link, callback, account listing, unlink | IMPLEMENTED |
-| `CloudService` | OAuth URL, state, code exchange, profile lookup, token encryption, account persistence | IMPLEMENTED |
+| `CloudService` | OAuth URL, state, code exchange, profile lookup, encrypted token persistence | IMPLEMENTED |
+| `TokenEncryptionService` | Versioned AES-256-GCM encryption/decryption for provider tokens | IMPLEMENTED |
+| `oauth_states` | Hashed, expiring, single-use OAuth state nonces | IMPLEMENTED |
 | `refresh_sessions` | Hashed rotating refresh tokens and token families | IMPLEMENTED |
 | `cloud_accounts` | One linked provider account per user/provider | IMPLEMENTED |
 | `files` | Normalized provider file metadata | SCHEMA IMPLEMENTED; population PLANNED |
@@ -103,7 +105,7 @@ sequenceDiagram
   N-->>F: Account list
 ```
 
-The current nonce store is an in-memory `Map`. It works only when the link request and callback reach the same running process. A Redis-backed state store is required for multiple instances.
+The nonce store is MongoDB-backed, so the link request and callback can reach different API instances. Expired records are removed by MongoDB's TTL monitor, and the callback also checks `expiresAt` explicitly.
 
 ## 5. Observability and error handling
 
@@ -134,14 +136,14 @@ The current controllers still contain a few development `console.log` statements
 Access and refresh tokens are encrypted with AES-256-GCM. The stored string format is:
 
 ```text
-base64url(iv).base64url(authTag).base64url(ciphertext)
+keyVersion.base64url(iv).base64url(authTag).base64url(ciphertext)
 ```
 
-The IV is randomly generated at 12 bytes for every encryption. The key is read from `CLOUD_TOKEN_ENCRYPTION_KEY` and must decode to exactly 32 bytes. The encryption key and Google client secret must remain outside MongoDB and source control. Rotating the key invalidates existing encrypted tokens unless a key-versioning/re-encryption scheme is added.
+The IV is randomly generated at 12 bytes for every encryption. The active key is read from `CLOUD_TOKEN_ENCRYPTION_KEY`, identified by `CLOUD_TOKEN_ENCRYPTION_KEY_VERSION`, and must decode to exactly 32 bytes. Older versions can be retained as `CLOUD_TOKEN_ENCRYPTION_KEY_<VERSION>` for decryption during rotation. AES-GCM authentication rejects tampered ciphertext. The encryption key and Google client secret must remain outside MongoDB and source control.
 
 ### OAuth state and nonce
 
-The signed state contains the authenticated My Drive user ID, a random nonce, and `purpose: google-link`. It expires after 10 minutes. The nonce is consumed on callback, which prevents replay within the process. The callback verifies state before processing success or denial responses.
+The signed state contains the authenticated My Drive user ID, a random nonce, and `purpose: google-link`. It expires after 10 minutes. Only a SHA-256 hash of the nonce is stored in MongoDB. The callback verifies the signature, then atomically consumes the matching unexpired state before processing success or denial responses, preventing replay across instances.
 
 ### Logging
 
@@ -153,6 +155,7 @@ Never log authorization URLs containing sensitive state, authorization codes, ac
 erDiagram
   USER ||--o{ CLOUD_ACCOUNT : owns
   CLOUD_ACCOUNT ||--o{ FILE : contains
+  USER ||--o{ OAUTH_STATE : starts
 
   USER {
     ObjectId _id PK
@@ -206,11 +209,22 @@ erDiagram
     date createdAt
     date updatedAt
   }
+
+  OAUTH_STATE {
+    ObjectId _id PK
+    ObjectId userId FK
+    string nonceHash UK
+    string purpose
+    date expiresAt
+    date createdAt
+    date updatedAt
+  }
 ```
 
 Implemented indexes:
 
 - `users.email` and `users.phone`: unique schema indexes.
+- `oauth_states.nonceHash`: unique index; `expiresAt`: TTL index; `userId` and `purpose`: lookup indexes.
 - `refresh_sessions.tokenHash`: unique index; `expiresAt`: TTL index; `familyId + revokedAt`: family lookup index; `userId` and `expiresAt`: field indexes.
 - `cloud_accounts`: unique `{ userId: 1, provider: 1 }` and unique `{ provider: 1, providerAccountId: 1 }`.
 - `cloud_accounts.userId` and `cloud_accounts.provider`: field indexes.
@@ -229,7 +243,7 @@ The `files` collection is referenced rather than embedded because a user's file 
 | POST | `/user/logout` | Bearer JWT | None | `{ message }` | `401` missing, invalid, or revoked token |
 | POST | `/auth/refresh` | None | `{ refresh_token }` | New `access_token` and rotated `refresh_token` | `400` validation; `401` invalid, expired, or reused token |
 | POST | `/cloud/google/link` | Bearer JWT | None | `{ authorizationUrl }` | `401`; `500` missing OAuth/encryption config |
-| GET | `/cloud/google/callback` | Public Google callback | `code`, `state`, or `error` query parameters | `302` to `CLOUD_DEEP_LINK` | `400` missing input; `401` invalid/expired/replayed state; Google exchange errors |
+| GET | `/cloud/google/callback` | Public Google callback | `code`, `state`, or `error` query parameters | `302` to `CLOUD_DEEP_LINK` | Redirects with `error=invalid_state`, `error=access_denied`, or `error=link_failed` |
 | GET | `/cloud/google/accounts` | Bearer JWT | None | Account metadata without encrypted token fields | `401` |
 | POST | `/cloud/google/unlink` | Bearer JWT | None | `{ message: "Google Drive unlinked" }` | `401` |
 
@@ -247,6 +261,7 @@ The current unlink operation only changes `status` to `revoked`. It does not cal
 | `GOOGLE_CLIENT_SECRET` | Yes for linking | Google OAuth client secret; backend only |
 | `GOOGLE_REDIRECT_URI` | Yes for linking | Public HTTPS callback, registered exactly in Google Cloud Console |
 | `CLOUD_TOKEN_ENCRYPTION_KEY` | Yes for linking | Base64url encoding of exactly 32 random bytes |
+| `CLOUD_TOKEN_ENCRYPTION_KEY_VERSION` | Yes for linking | Active key identifier, for example `v1` |
 | `CLOUD_DEEP_LINK` | No | Flutter return URI; defaults to `mydrive://linked` |
 
 `.env.example` is a template. Runtime values must be in `.env` locally or in the deployment provider's environment settings. Never commit real client secrets or encryption keys.
@@ -258,7 +273,7 @@ The current unlink operation only changes `status` to `revoked`. It does not cal
 - Invalid credentials return `401` without revealing whether the username exists.
 - Duplicate email/phone or mismatched registration/update passwords return `409`.
 - Google denial is returned to the callback as `error`; after valid state verification the browser is redirected with an error query.
-- Missing, expired, incorrectly signed, wrong-purpose, or replayed state is rejected with `401`.
+- Missing, expired, incorrectly signed, wrong-purpose, or replayed state redirects to the deep link with `error=invalid_state`.
 - A Google response without a refresh token is rejected. With `prompt=consent` and offline access, Google is expected to return one, but the provider may still omit it.
 - A repeated link for the same My Drive user and provider upserts the account. A different Google subject replaces the current user/provider record only if the account-level uniqueness constraints permit it; account ownership conflicts should be handled explicitly in a hardened implementation.
 - Provider revocation and Google provider-token refresh are not yet implemented. This is separate from My Drive's `/auth/refresh`, which rotates My Drive session refresh tokens. Sync must later refresh provider credentials using the encrypted Google refresh token and mark the account for re-link when that fails.
@@ -268,16 +283,14 @@ The current unlink operation only changes `status` to `revoked`. It does not cal
 
 Before production:
 
-1. Move OAuth nonce state to Redis with a ten-minute TTL and atomic consume operation.
-2. Replace the in-memory token blacklist with Redis or a session/revocation model; add token expiry and cleanup.
-3. Move the access-token blacklist to Redis or a session/revocation model; add token expiry and cleanup.
-4. Use a cloud KMS or secret manager for encryption keys and client secrets; add key IDs/versioning for rotation.
-5. Add rate limiting to registration, login, refresh, link initiation, callback, and unlink routes.
-6. Add structured redacted logs, request correlation IDs, metrics, audit events, and alerting.
-7. Validate ObjectId inputs and convert provider errors into stable API errors.
-8. Add a background queue for initial and incremental sync, with retries, idempotency, backoff, and dead-letter handling.
-9. Scope every file query through the authenticated user's cloud account ownership.
-10. Use HTTPS everywhere, restrict CORS to known clients, and avoid exposing provider tokens in URLs or response bodies.
+1. Replace the in-memory token blacklist with Redis or a session/revocation model; add token expiry and cleanup.
+2. Use a cloud KMS or secret manager for encryption keys and client secrets; add key IDs/versioning for rotation.
+3. Add rate limiting to registration, login, refresh, link initiation, callback, and unlink routes.
+4. Add structured redacted logs, request correlation IDs, metrics, audit events, and alerting.
+5. Validate ObjectId inputs and convert provider errors into stable API errors.
+6. Add a background queue for initial and incremental sync, with retries, idempotency, backoff, and dead-letter handling.
+7. Scope every file query through the authenticated user's cloud account ownership.
+8. Use HTTPS everywhere, restrict CORS to known clients, and avoid exposing provider tokens in URLs or response bodies.
 11. Add database cascade/cleanup workflows for account deletion and unlinking.
 12. Use separate Google Cloud projects/credentials for development, staging, and production.
 
