@@ -7,10 +7,15 @@ import { JwtAuthGuard } from './jwt-auth.guard';
 import { User, UserSchema } from './schemas/user.schema';
 import { UserService } from './user.service';
 import { TokenBlacklistService } from './token-blacklist.service';
+import { RefreshSession, RefreshSessionSchema } from './schemas/refresh-session.schema';
+import { AuthController } from './auth.controller';
 
 @Module({
 	imports: [
-		MongooseModule.forFeature([{ name: User.name, schema: UserSchema }]),
+		MongooseModule.forFeature([
+			{ name: User.name, schema: UserSchema },
+			{ name: RefreshSession.name, schema: RefreshSessionSchema },
+		]),
 		JwtModule.registerAsync({
 			imports: [ConfigModule],
 			inject: [ConfigService],
@@ -23,7 +28,7 @@ import { TokenBlacklistService } from './token-blacklist.service';
 			},
 		}),
 	],
-	controllers: [UserController],
+	controllers: [UserController, AuthController],
 	providers: [UserService, JwtAuthGuard, TokenBlacklistService],
 	exports: [JwtAuthGuard, JwtModule, TokenBlacklistService],
 })

@@ -1,0 +1,45 @@
+flowchart LR
+  subgraph Client["Client"]
+    FA["Flutter app"]
+    SB["System browser"]
+  end
+
+  subgraph Backend["NestJS API"]
+    AUTH["AuthModule<br/>register, login, edit-user, logout<br/>JWT guard"]
+    CLOUD["CloudModule<br/>link, callback, list, unlink<br/>signed state, AES-256-GCM"]
+    FILES["FilesModule<br/>GET /files, /files/summary"]
+    SYNC["Sync workers<br/>classify by MIME type"]
+  end
+
+  subgraph Data["Data stores"]
+    MDB[("MongoDB<br/>users, sessions, oauth_states,<br/>cloud_accounts, sync_jobs, files")]
+    REDIS[("Redis<br/>BullMQ job queue")]
+  end
+
+  subgraph Providers["Cloud providers"]
+    GOOG["Google OAuth + Drive API"]
+    DBX["Dropbox API"]
+    JIO["Jio Cloud<br/>access unconfirmed"]
+  end
+
+  FA -->|"REST + JWT"| AUTH
+  FA -->|"REST + JWT"| CLOUD
+  FA -.->|"REST + JWT"| FILES
+  FA -->|"opens auth URL"| SB
+  SB -->|"user consent"| GOOG
+  GOOG -->|"redirect with code + state"| CLOUD
+  CLOUD -->|"deep link mydrive://linked"| FA
+
+  AUTH --> MDB
+  CLOUD --> MDB
+  CLOUD -->|"exchange code, refresh tokens"| GOOG
+  FILES -.-> MDB
+  CLOUD -.->|"enqueue sync"| REDIS
+  REDIS -.-> SYNC
+  SYNC -.->|"list files, Changes API"| GOOG
+  SYNC -.-> DBX
+  SYNC -.-> JIO
+  SYNC -.->|"upsert files, sync_jobs"| MDB
+
+  classDef planned stroke-dasharray: 5 5,stroke:#888,color:#555;
+  class FILES,SYNC,REDIS,DBX,JIO planned;

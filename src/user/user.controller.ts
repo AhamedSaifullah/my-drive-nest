@@ -51,8 +51,10 @@ export class UserController {
 
 	@Post('logout')
 	@UseGuards(JwtAuthGuard)
-	logout(@Req() request: AuthenticatedRequest) {
+	async logout(@Req() request: AuthenticatedRequest) {
+		console.log('test from logout');
 		this.tokenBlacklistService.revoke(request.authToken);
+		await this.userService.revokeRefreshSessions(request.user.sub);
 		return { message: 'logged out successfully' };
 	}
 }

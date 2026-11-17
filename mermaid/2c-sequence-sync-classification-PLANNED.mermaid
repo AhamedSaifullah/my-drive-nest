@@ -1,0 +1,28 @@
+sequenceDiagram
+  autonumber
+  participant API as NestJS CloudModule
+  participant Q as BullMQ + Redis
+  participant W as Sync worker
+  participant DB as MongoDB
+  participant G as Google Drive API
+  participant App as Flutter app
+
+  API->>Q: enqueue initial sync (cloudAccountId)
+  Q->>W: deliver job
+  W->>DB: create sync_jobs record (running)
+  W->>DB: load and decrypt tokens
+  loop each page of files
+    W->>G: files.list (pageToken)
+    G-->>W: file metadata
+    W->>W: classify by mimeType into category
+    W->>DB: bulk upsert files
+  end
+  W->>DB: save Changes API cursor on cloud_accounts
+  W->>DB: mark sync_jobs done
+
+  App->>API: GET /files/summary
+  API->>DB: aggregate count by category
+  API-->>App: images, videos, audios, documents
+  App->>API: GET /files?category=image&page=1
+  API->>DB: query files by userId and category
+  API-->>App: paginated files

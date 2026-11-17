@@ -1,0 +1,38 @@
+sequenceDiagram
+  autonumber
+  participant App as Flutter app
+  participant API as NestJS CloudModule
+  participant Br as System browser
+  participant G as Google OAuth + Drive
+  participant DB as MongoDB
+
+  App->>API: POST /cloud/google/link (Bearer JWT)
+  API->>DB: save nonce in oauth_states (TTL)
+  API->>API: create signed state (userId, nonce, expiry)
+  API-->>App: authUrl
+  App->>Br: open authUrl
+  Br->>G: show consent screen
+  alt user approves
+    G-->>Br: redirect to GOOGLE_REDIRECT_URI with code and state
+    Br->>API: GET /cloud/google/callback
+    API->>API: verify signature and expiry
+    API->>DB: consume nonce (single use)
+    API->>G: exchange code for access + refresh tokens
+    G-->>API: tokens
+    API->>API: encrypt tokens (AES-256-GCM)
+    API->>DB: upsert cloud_accounts for userId
+    API-->>Br: redirect mydrive://linked
+    Br-->>App: deep link opens app
+    App->>API: GET linked accounts (Bearer JWT)
+    API->>DB: find cloud_accounts by userId
+    API-->>App: accounts list
+  else user denies consent
+    G-->>Br: redirect with error=access_denied
+    Br->>API: GET /cloud/google/callback with error
+    API-->>Br: redirect mydrive://linked?error=denied
+    Br-->>App: deep link, show message
+  else state invalid, expired, or replayed
+    Br->>API: GET /cloud/google/callback
+    API-->>Br: reject, redirect with error
+    Br-->>App: deep link, show message
+  end

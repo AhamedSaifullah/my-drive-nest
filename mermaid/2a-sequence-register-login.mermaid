@@ -1,0 +1,26 @@
+sequenceDiagram
+  autonumber
+  participant App as Flutter app
+  participant API as NestJS AuthModule
+  participant DB as MongoDB
+
+  App->>API: POST register (name, email, password)
+  API->>DB: insert user (hashed password)
+  API-->>App: 201 + JWT
+
+  App->>API: POST login (email, password)
+  API->>DB: find user, verify password
+  API-->>App: 200 + JWT
+
+  App->>API: GET protected route (Bearer JWT)
+  alt valid token
+    API-->>App: 200 data
+  else expired or invalid token
+    API-->>App: 401 Unauthorized
+    App->>App: clear token, go to login screen
+  end
+
+  App->>API: POST logout (Bearer JWT)
+  API->>DB: revoke session or refresh token
+  API-->>App: 200
+  App->>App: clear stored tokens

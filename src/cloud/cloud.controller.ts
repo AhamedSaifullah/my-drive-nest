@@ -11,6 +11,7 @@ export class CloudController {
 	@Post('link')
 	@UseGuards(JwtAuthGuard)
 	link(@Req() request: AuthenticatedRequest) {
+		console.log("cloud/google/check link route SAIF");
 		return this.cloudService.createGoogleAuthorizationUrl(request.user.sub);
 	}
 
@@ -21,18 +22,21 @@ export class CloudController {
 		@Query('error') error: string | undefined,
 		@Res({ passthrough: true }) response: Response,
 	) {
+		console.log("cloud/google/callback is calling>>>>>......SAIF!!!");
 		return this.cloudService.handleGoogleCallback(code, state, error, response);
 	}
 
 	@Get('accounts')
 	@UseGuards(JwtAuthGuard)
 	accounts(@Req() request: AuthenticatedRequest) {
+		console.log("cloud/google/accounts is calling>>>>>......SAIF!!!");
 		return this.cloudService.listAccounts(request.user.sub);
 	}
 
 	@Post('unlink')
 	@UseGuards(JwtAuthGuard)
 	unlink(@Req() request: AuthenticatedRequest) {
+		console.log("cloud/google/unlink is calling>>>>>......SAIF!!!");
 		return this.cloudService.unlinkGoogle(request.user.sub);
 	}
 }
