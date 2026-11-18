@@ -28,8 +28,8 @@ function redisConnection(redisUrl: string) {
 			useFactory: (config: ConfigService) => ({
 				connection: redisConnection(config.getOrThrow<string>('REDIS_URL')),
 				defaultJobOptions: {
-					attempts: 3,
-					backoff: { type: 'exponential', delay: 1000 },
+					attempts: 5,
+					backoff: { type: 'exponential', delay: 2000 },
 					removeOnComplete: 100,
 					removeOnFail: 1000,
 				},

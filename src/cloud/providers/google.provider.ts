@@ -6,6 +6,7 @@ import {
 	CloudProviderFile,
 } from './cloud-provider.interface';
 import { classifyMimeType } from '../file-classifier';
+import { CloudProviderHttpError } from './cloud-provider.error';
 
 @Injectable()
 export class GoogleProvider implements CloudProvider {
@@ -73,7 +74,7 @@ export class GoogleProvider implements CloudProvider {
 			`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(providerFileId)}?alt=media`,
 			{ headers: { authorization: `Bearer ${accessToken}` } },
 		);
-		if (!response.ok) throw new BadRequestException('Google file download failed');
+		if (!response.ok) await this.throwProviderError(response, 'Google file download failed');
 		return response;
 	}
 
@@ -92,8 +93,32 @@ export class GoogleProvider implements CloudProvider {
 		const response = await fetch(url, {
 			headers: { authorization: `Bearer ${accessToken}` },
 		});
-		if (!response.ok) throw new BadRequestException('Google Drive request failed');
+		if (!response.ok) await this.throwProviderError(response, 'Google Drive request failed');
 		return (await response.json()) as T;
+	}
+
+	private async throwProviderError(response: Response, fallbackMessage: string): Promise<never> {
+		const retryAfterMs = this.retryAfterMs(response.headers.get('retry-after'));
+		let reason = '';
+		try {
+			const body = (await response.clone().json()) as { error?: { errors?: { reason?: string }[] } };
+			reason = body.error?.errors?.[0]?.reason ?? '';
+		} catch {
+			// The status code is enough to classify the failure.
+		}
+		const retryable = response.status === 429 || response.status >= 500 || (
+			response.status === 403 && ['rateLimitExceeded', 'userRateLimitExceeded', 'quotaExceeded'].includes(reason)
+		);
+		if (retryable) throw new CloudProviderHttpError(response.status, true, retryAfterMs);
+		throw new BadRequestException(fallbackMessage);
+	}
+
+	private retryAfterMs(value: string | null) {
+		if (!value) return undefined;
+		const seconds = Number(value);
+		if (Number.isFinite(seconds)) return Math.max(0, seconds * 1000);
+		const timestamp = Date.parse(value);
+		return Number.isNaN(timestamp) ? undefined : Math.max(0, timestamp - Date.now());
 	}
 
 	private mapFile(file: GoogleFile): CloudProviderFile {

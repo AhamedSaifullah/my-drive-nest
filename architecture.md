@@ -293,7 +293,7 @@ Before production:
 3. Add rate limiting to registration, login, refresh, link initiation, callback, and unlink routes.
 4. Add structured redacted logs, request correlation IDs, metrics, audit events, and alerting.
 5. Validate ObjectId inputs and convert provider errors into stable API errors.
-6. Add dead-letter handling and operational monitoring for the background sync queue; the queue, retries, idempotent initial sync, and incremental sync are implemented.
+6. Add dead-letter handling and operational monitoring for the background sync queue; the queue, exponential retries for provider rate limits/5xx/quota errors, idempotent initial sync, and incremental sync are implemented.
 7. Scope every file query through the authenticated user's cloud account ownership.
 8. Use HTTPS everywhere, restrict CORS to known clients, and avoid exposing provider tokens in URLs or response bodies.
 11. Add database cascade/cleanup workflows for account deletion and unlinking.

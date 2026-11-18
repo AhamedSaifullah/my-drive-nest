@@ -1,4 +1,5 @@
 import { GoogleProvider } from './google.provider';
+import { CloudProviderHttpError } from './cloud-provider.error';
 
 describe('GoogleProvider', () => {
 	let provider: GoogleProvider;
@@ -58,5 +59,21 @@ describe('GoogleProvider', () => {
 		expect(files.map((file) => file.providerFileId)).toEqual(['file-1', 'file-2']);
 		expect(fetchMock).toHaveBeenCalledTimes(2);
 		expect(String(fetchMock.mock.calls[1][0])).toContain('pageToken=page-2');
+	});
+
+	it('marks rate limits as retryable and preserves Retry-After', async () => {
+		const response = {
+			ok: false,
+			status: 429,
+			headers: new Headers({ 'retry-after': '3' }),
+			clone: () => ({ json: jest.fn().mockResolvedValue({}) }),
+		};
+		jest.spyOn(global, 'fetch').mockResolvedValue(response as never);
+
+		await expect(provider.listFiles('access-token')).rejects.toMatchObject<Partial<CloudProviderHttpError>>({
+			status: 429,
+			retryable: true,
+			retryAfterMs: 3000,
+		});
 	});
 });

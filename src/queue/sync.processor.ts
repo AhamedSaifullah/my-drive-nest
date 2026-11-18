@@ -4,6 +4,7 @@ import { Job } from 'bullmq';
 import { INCREMENTAL_SYNC_JOB, INITIAL_SYNC_JOB, SYNC_QUEUE, TEST_SYNC_JOB } from './queue.constants';
 import { IncrementalSyncJobData, InitialSyncJobData, TestSyncJobData } from './sync-queue.service';
 import { InitialSyncService } from '../cloud/initial-sync.service';
+import { CloudProviderHttpError } from '../cloud/providers/cloud-provider.error';
 
 @Injectable()
 @Processor(SYNC_QUEUE)
@@ -15,18 +16,23 @@ export class SyncProcessor extends WorkerHost {
 	}
 
 	async process(job: Job<TestSyncJobData | InitialSyncJobData | IncrementalSyncJobData>) {
-		if (job.name === INITIAL_SYNC_JOB || job.name === INCREMENTAL_SYNC_JOB) {
-			if (job.name === INCREMENTAL_SYNC_JOB) return this.initialSync.runIncremental(job.data as IncrementalSyncJobData);
-			return this.initialSync.run(job.data as InitialSyncJobData);
+		try {
+			if (job.name === INITIAL_SYNC_JOB || job.name === INCREMENTAL_SYNC_JOB) {
+				if (job.name === INCREMENTAL_SYNC_JOB) return this.initialSync.runIncremental(job.data as IncrementalSyncJobData);
+				return this.initialSync.run(job.data as InitialSyncJobData);
+			}
+			if (job.name === TEST_SYNC_JOB) {
+				this.logger.log(JSON.stringify({
+					event: 'cloud.sync.test_job_processed',
+					jobId: job.id,
+					userId: (job.data as TestSyncJobData).userId,
+				}));
+				return { processed: true, jobId: job.id };
+			}
+			throw new Error(`Unsupported sync job: ${job.name}`);
+		} catch (cause) {
+			if (cause instanceof CloudProviderHttpError && !cause.retryable) job.discard();
+			throw cause;
 		}
-		if (job.name === TEST_SYNC_JOB) {
-			this.logger.log(JSON.stringify({
-				event: 'cloud.sync.test_job_processed',
-				jobId: job.id,
-				userId: (job.data as TestSyncJobData).userId,
-			}));
-			return { processed: true, jobId: job.id };
-		}
-		throw new Error(`Unsupported sync job: ${job.name}`);
 	}
 }
