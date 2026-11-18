@@ -112,4 +112,41 @@ describe('InitialSyncService', () => {
 			{ $set: { changesCursor: 'cursor-2' } },
 		);
 	});
+
+	it('enqueues manual sync once per cooldown window', async () => {
+		const userId = new Types.ObjectId();
+		const accountId = new Types.ObjectId();
+		const firstJobId = new Types.ObjectId();
+		const account = { _id: accountId, changesCursor: 'cursor-1' };
+		const accountModel = {
+			findOne: jest.fn().mockReturnValue({ exec: jest.fn().mockResolvedValue(account) }),
+			findOneAndUpdate: jest.fn()
+				.mockReturnValueOnce({ exec: jest.fn().mockResolvedValue(account) })
+				.mockReturnValueOnce({ exec: jest.fn().mockResolvedValue(null) }),
+		};
+		const syncJobModel = {
+			create: jest.fn().mockResolvedValue({ _id: firstJobId }),
+			updateOne: jest.fn().mockReturnValue({ exec: jest.fn().mockResolvedValue({}) }),
+		};
+		const syncQueue = {
+			enqueueIncrementalSync: jest.fn().mockResolvedValue({ queueJobId: 'queue-job-1' }),
+		};
+		const service = new InitialSyncService(
+			accountModel as never,
+			{} as never,
+			syncJobModel as never,
+			{} as never,
+			{} as never,
+			syncQueue as never,
+		);
+
+		await expect(service.enqueueIncremental(userId.toString(), accountId.toString())).resolves.toEqual({
+			syncJobId: firstJobId.toString(),
+			queueJobId: 'queue-job-1',
+		});
+		await expect(service.enqueueIncremental(userId.toString(), accountId.toString())).rejects.toThrow(
+			'Sync was requested recently',
+		);
+		expect(syncQueue.enqueueIncrementalSync).toHaveBeenCalledTimes(1);
+	});
 });

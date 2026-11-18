@@ -10,6 +10,7 @@ import { RequestLoggingMiddleware } from './common/middleware/request-logging.mi
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { validateEnvironment } from './config/env.validation';
 import { QueueModule } from './queue/queue.module';
+import { ScheduleModule } from '@nestjs/schedule';
 
 @Module({
 	imports: [
@@ -17,6 +18,7 @@ import { QueueModule } from './queue/queue.module';
 		ThrottlerModule.forRoot({
 			throttlers: [{ ttl: 60_000, limit: 100, blockDuration: 60_000 }],
 		}),
+		ScheduleModule.forRoot(),
 		MongooseModule.forRootAsync({
 			imports: [ConfigModule],
 			inject: [ConfigService],

@@ -15,6 +15,7 @@ import { QueueModule } from '../queue/queue.module';
 import { InitialSyncService } from './initial-sync.service';
 import { SyncProcessor } from '../queue/sync.processor';
 import { SyncController } from './sync.controller';
+import { SyncScheduler } from './sync.scheduler';
 
 @Module({
 	imports: [
@@ -29,6 +30,6 @@ import { SyncController } from './sync.controller';
 		]),
 	],
 	controllers: [CloudController, CloudAccountsController, SyncController],
-	providers: [CloudService, TokenEncryptionService, GoogleProvider, InitialSyncService, SyncProcessor],
+	providers: [CloudService, TokenEncryptionService, GoogleProvider, InitialSyncService, SyncProcessor, SyncScheduler],
 })
 export class CloudModule {}

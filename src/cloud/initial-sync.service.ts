@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, HttpException, HttpStatus, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { CloudAccount, CloudAccountDocument } from './entities/cloud-account.schema';
@@ -28,14 +28,33 @@ export class InitialSyncService {
 	) {}
 
 	async enqueueIncremental(userId: string, accountId: string) {
+		if (!Types.ObjectId.isValid(accountId)) throw new NotFoundException('Google account not found');
 		const account = await this.accountModel.findOne({
 			_id: new Types.ObjectId(accountId),
 			userId: new Types.ObjectId(userId),
 			provider: 'google',
 			status: 'active',
 		}).exec();
-		if (!account) throw new Error('Google account is not active');
-		if (!account.changesCursor) throw new Error('Initial Google sync has not completed');
+		if (!account) throw new NotFoundException('Google account not found');
+		if (!account.changesCursor) {
+			throw new BadRequestException('Initial Google sync has not completed');
+		}
+		const cooldownAt = new Date(Date.now() - 5 * 60 * 1000);
+		const reservedAccount = await this.accountModel.findOneAndUpdate(
+			{
+				_id: account._id,
+				status: 'active',
+				$or: [
+					{ lastSyncRequestedAt: { $exists: false } },
+					{ lastSyncRequestedAt: { $lte: cooldownAt } },
+				],
+			},
+			{ $set: { lastSyncRequestedAt: new Date() } },
+			{ new: true },
+		).exec();
+		if (!reservedAccount) {
+			throw new HttpException('Sync was requested recently', HttpStatus.TOO_MANY_REQUESTS);
+		}
 		const syncJob = await this.syncJobModel.create({
 			cloudAccountId: account._id,
 			type: 'incremental',

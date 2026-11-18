@@ -35,6 +35,9 @@ export class CloudAccount {
 	@Prop()
 	changesCursor?: string;
 
+	@Prop({ type: Date })
+	lastSyncRequestedAt?: Date;
+
 	@Prop({ required: true, enum: ['active', 'needs_reauth', 'unlinked', 'revoked'], default: 'active' })
 	status!: 'active' | 'needs_reauth' | 'unlinked' | 'revoked';
 }

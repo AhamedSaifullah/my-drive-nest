@@ -249,6 +249,7 @@ The `files` collection is referenced rather than embedded because a user's file 
 | GET | `/cloud/google/accounts` | Bearer JWT | None | Account metadata without encrypted token fields | `401` |
 | POST | `/cloud/google/unlink` | Bearer JWT | None | `{ message: "Google Drive unlinked" }` | `401` |
 | DELETE | `/cloud/accounts/:id` | Bearer JWT | Cloud account ID in the path | `{ message: "Google Drive unlinked" }` | `400` invalid ID; `401`; `404` account not found |
+| POST | `/cloud/accounts/:id/sync` | Bearer JWT | Cloud account ID in the path | `{ syncJobId, queueJobId, queue, jobName }` | `401`; `404`; `429` cooldown; `503` Redis unavailable |
 | POST | `/cloud/sync/test` | Bearer JWT | None | `{ jobId, queue, jobName }` | `401`; `503` Redis unavailable |
 
 Unlinking revokes the Google grant when possible, deletes synced `files`, marks the account `unlinked`, and removes locally stored encrypted token fields. The legacy `POST /cloud/google/unlink` route uses the same cleanup flow for the user's Google account.
