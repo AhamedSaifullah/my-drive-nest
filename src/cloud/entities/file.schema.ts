@@ -2,6 +2,7 @@ import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { HydratedDocument, Types } from 'mongoose';
 
 export type FileDocument = HydratedDocument<CloudFile>;
+export type FileCategory = 'image' | 'video' | 'audio' | 'document' | 'other';
 
 @Schema({ collection: 'files', timestamps: true, versionKey: false })
 export class CloudFile {
@@ -21,7 +22,7 @@ export class CloudFile {
 	mimeType?: string;
 
 	@Prop({ required: true, enum: ['image', 'video', 'audio', 'document', 'other'] })
-	category!: 'image' | 'video' | 'audio' | 'document' | 'other';
+	category!: FileCategory;
 
 	@Prop({ type: Number })
 	size?: number;

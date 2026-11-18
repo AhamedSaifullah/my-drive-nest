@@ -34,6 +34,7 @@ describe('GoogleProvider', () => {
 		expect(page.files[0]).toMatchObject({
 			providerFileId: 'folder-1',
 			mimeType: 'application/vnd.google-apps.folder',
+			category: 'other',
 		});
 	});
 

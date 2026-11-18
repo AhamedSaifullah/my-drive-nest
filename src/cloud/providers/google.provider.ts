@@ -5,6 +5,7 @@ import {
 	CloudProvider,
 	CloudProviderFile,
 } from './cloud-provider.interface';
+import { classifyMimeType } from '../file-classifier';
 
 @Injectable()
 export class GoogleProvider implements CloudProvider {
@@ -97,6 +98,7 @@ export class GoogleProvider implements CloudProvider {
 			thumbnailUrl: file.thumbnailLink,
 			parentId: file.parents?.[0],
 			trashed: file.trashed,
+			category: classifyMimeType(file.mimeType),
 		};
 	}
 }

@@ -1,3 +1,5 @@
+import type { FileCategory } from '../entities/file.schema';
+
 export type CloudProviderFile = {
 	providerFileId: string;
 	name: string;
@@ -7,6 +9,7 @@ export type CloudProviderFile = {
 	thumbnailUrl?: string;
 	parentId?: string;
 	trashed?: boolean;
+	category: FileCategory;
 };
 
 export type CloudFilePage = {
