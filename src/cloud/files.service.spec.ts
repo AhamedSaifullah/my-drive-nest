@@ -62,4 +62,23 @@ describe('FilesService', () => {
 			expect.objectContaining({ $match: { userId } }),
 		]));
 	});
+
+	it('returns metadata only when the file belongs to the user', async () => {
+		const userId = new Types.ObjectId();
+		const fileId = new Types.ObjectId();
+		const fileQuery = {
+			lean: jest.fn().mockReturnThis(),
+			exec: jest.fn().mockResolvedValue({ _id: fileId, userId, name: 'photo.jpg', category: 'image' }),
+		};
+		const fileModel = { findOne: jest.fn().mockReturnValue(fileQuery) };
+		const service = new FilesService(fileModel as never);
+
+		await expect(service.getById(userId.toString(), fileId.toString())).resolves.toEqual({
+			_id: fileId,
+			userId,
+			name: 'photo.jpg',
+			category: 'image',
+		});
+		expect(fileModel.findOne).toHaveBeenCalledWith({ _id: fileId, userId });
+	});
 });

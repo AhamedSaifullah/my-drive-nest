@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { CloudFile, FileCategory, FileDocument } from './entities/file.schema';
@@ -79,6 +79,16 @@ export class FilesService {
 		const totalFiles = Object.values(categories).reduce((sum, value) => sum + value.count, 0);
 		const totalSize = Object.values(categories).reduce((sum, value) => sum + value.totalSize, 0);
 		return { totalFiles, totalSize, categories };
+	}
+
+	async getById(userId: string, fileId: string) {
+		if (!Types.ObjectId.isValid(fileId)) throw new BadRequestException('Invalid file id');
+		const file = await this.fileModel.findOne({
+			_id: new Types.ObjectId(fileId),
+			userId: this.toObjectId(userId, 'user id'),
+		}).lean().exec();
+		if (!file) throw new NotFoundException('File not found');
+		return file;
 	}
 
 	private buildFilter(userId: string, query: FileQuery) {

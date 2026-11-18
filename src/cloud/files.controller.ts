@@ -1,4 +1,4 @@
-import { Controller, Get, Query, Req, UseGuards } from '@nestjs/common';
+import { Controller, Get, Param, Query, Req, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../user/jwt-auth.guard';
 import type { AuthenticatedRequest } from '../user/jwt-auth.guard';
 import { FilesService } from './files.service';
@@ -19,5 +19,13 @@ export class FilesController {
 		@Query('accountId') accountId?: string,
 	) {
 		return this.filesService.summary(request.user.sub, accountId);
+	}
+
+	@Get(':id')
+	getById(
+		@Param('id') fileId: string,
+		@Req() request: AuthenticatedRequest,
+	) {
+		return this.filesService.getById(request.user.sub, fileId);
 	}
 }
