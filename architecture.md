@@ -28,7 +28,7 @@ flowchart LR
   Queue -.-> Mongo
 ```
 
-The current implementation covers registration, login, profile operations, logout, Google account linking, account listing, unlinking, encryption, the OAuth state store, the file schema, and the Redis/BullMQ queue foundation. File synchronization and file APIs remain planned.
+The current implementation covers registration, login, profile operations, logout, Google account linking, account listing, unlinking, encryption, the OAuth state store, the file and sync-job schemas, the provider contract/Google adapter, and the Redis/BullMQ queue foundation. File synchronization and file APIs remain planned.
 
 ## 2. Module and responsibility map
 
@@ -46,10 +46,10 @@ The current implementation covers registration, login, profile operations, logou
 | `refresh_sessions` | Hashed rotating refresh tokens and token families | IMPLEMENTED |
 | `cloud_accounts` | One linked provider account per user/provider | IMPLEMENTED |
 | `files` | Normalized provider file metadata | SCHEMA IMPLEMENTED; population PLANNED |
-| Sync processors | Initial and incremental synchronization | PLANNED; queue foundation IMPLEMENTED |
+| Sync processors | Initial and incremental synchronization | PLANNED; queue foundation and Google provider adapter IMPLEMENTED |
 | Dropbox/Jio providers | Additional provider adapters | PLANNED |
 
-The current cloud implementation calls Google through native `fetch`; it does not yet expose a provider interface or provider adapter classes.
+The cloud layer exposes a `CloudProvider` contract and a `GoogleProvider` adapter. Google Drive file listing requests metadata fields, filters `trashed = false`, includes folders, and exposes an async generator that follows every `nextPageToken`.
 
 ## 3. Authentication design
 
