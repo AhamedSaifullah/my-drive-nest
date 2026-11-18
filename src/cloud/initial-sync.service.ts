@@ -76,6 +76,45 @@ export class InitialSyncService {
 		}
 	}
 
+	async getStatus(userId: string, accountId: string) {
+		if (!Types.ObjectId.isValid(accountId)) throw new NotFoundException('Google account not found');
+		const account = await this.accountModel.findOne({
+			_id: new Types.ObjectId(accountId),
+			userId: new Types.ObjectId(userId),
+			provider: 'google',
+		}).select('_id').lean().exec();
+		if (!account) throw new NotFoundException('Google account not found');
+
+		const job = await this.syncJobModel.findOne({ cloudAccountId: account._id })
+			.sort({ createdAt: -1 })
+			.lean()
+			.exec();
+		if (!job) {
+			return {
+				accountId: account._id.toString(),
+				status: 'not_started',
+				processedCount: 0,
+				createdCount: 0,
+				updatedCount: 0,
+				deletedCount: 0,
+			};
+		}
+
+		return {
+			accountId: account._id.toString(),
+			jobId: job._id.toString(),
+			type: job.type,
+			status: job.status,
+			processedCount: job.processedCount ?? 0,
+			createdCount: job.createdCount ?? 0,
+			updatedCount: job.updatedCount ?? 0,
+			deletedCount: job.deletedCount ?? 0,
+			...(job.error ? { error: job.error } : {}),
+			...(job.startedAt ? { startedAt: job.startedAt } : {}),
+			...(job.completedAt ? { completedAt: job.completedAt } : {}),
+		};
+	}
+
 	async run(data: InitialSyncJobData) {
 		const syncJobId = new Types.ObjectId(data.syncJobId);
 		const accountId = new Types.ObjectId(data.accountId);

@@ -149,4 +149,50 @@ describe('InitialSyncService', () => {
 		);
 		expect(syncQueue.enqueueIncrementalSync).toHaveBeenCalledTimes(1);
 	});
+
+	it('returns the latest sync status and counts for an account', async () => {
+		const userId = new Types.ObjectId();
+		const accountId = new Types.ObjectId();
+		const jobId = new Types.ObjectId();
+		const accountQuery = {
+			select: jest.fn().mockReturnThis(),
+			lean: jest.fn().mockReturnThis(),
+			exec: jest.fn().mockResolvedValue({ _id: accountId }),
+		};
+		const jobQuery = {
+			sort: jest.fn().mockReturnThis(),
+			lean: jest.fn().mockReturnThis(),
+			exec: jest.fn().mockResolvedValue({
+				_id: jobId,
+				type: 'incremental',
+				status: 'completed',
+				processedCount: 4,
+				createdCount: 1,
+				updatedCount: 2,
+				deletedCount: 1,
+			}),
+		};
+		const accountModel = { findOne: jest.fn().mockReturnValue(accountQuery) };
+		const syncJobModel = { findOne: jest.fn().mockReturnValue(jobQuery) };
+		const service = new InitialSyncService(
+			accountModel as never,
+			{} as never,
+			syncJobModel as never,
+			{} as never,
+			{} as never,
+			{} as never,
+		);
+
+		await expect(service.getStatus(userId.toString(), accountId.toString())).resolves.toEqual({
+			accountId: accountId.toString(),
+			jobId: jobId.toString(),
+			type: 'incremental',
+			status: 'completed',
+			processedCount: 4,
+			createdCount: 1,
+			updatedCount: 2,
+			deletedCount: 1,
+		});
+		expect(jobQuery.sort).toHaveBeenCalledWith({ createdAt: -1 });
+	});
 });

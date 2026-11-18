@@ -1,4 +1,4 @@
-import { Controller, Delete, Param, Post, Req, UseGuards } from '@nestjs/common';
+import { Controller, Delete, Get, Param, Post, Req, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../user/jwt-auth.guard';
 import type { AuthenticatedRequest } from '../user/jwt-auth.guard';
 import { CloudService } from './cloud.service';
@@ -18,6 +18,15 @@ export class CloudAccountsController {
 		@Req() request: AuthenticatedRequest,
 	) {
 		return this.initialSync.enqueueIncremental(request.user.sub, accountId);
+	}
+
+	@Get(':id/sync/status')
+	@UseGuards(JwtAuthGuard)
+	getSyncStatus(
+		@Param('id') accountId: string,
+		@Req() request: AuthenticatedRequest,
+	) {
+		return this.initialSync.getStatus(request.user.sub, accountId);
 	}
 
 	@Delete(':id')

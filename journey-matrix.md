@@ -19,6 +19,7 @@ Test coverage is marked `unknown` because no test execution or coverage report w
 | J13 | Expired/revoked provider token | Internal `CloudService.getGoogleAccessToken`; future sync/re-link | `cloud_accounts` refresh/status update | PARTIAL | unknown |
 | J14 | Initial sync/classification | Initial sync queue worker | `sync_jobs` read/write; `cloud_accounts` read; `files` bulk upsert | IMPLEMENTED | unknown |
 | J19 | Manual/periodic incremental sync | `POST /cloud/accounts/:id/sync`; cron every 15 minutes | `cloud_accounts` cooldown/cursor; `sync_jobs`; `files` changes | IMPLEMENTED | unknown |
+| J20 | View sync status | `GET /cloud/accounts/:id/sync/status` | `cloud_accounts` ownership; latest `sync_jobs` record | IMPLEMENTED | unknown |
 | J15 | Browse by category | `GET /files?category=&page=` planned | `files` read | PLANNED | unknown |
 | J16 | View/download file | File endpoint planned | `files` read; provider read | PLANNED | unknown |
 | J17 | Dropbox/Jio Cloud | Provider endpoints planned | `cloud_accounts`, `files` planned | PLANNED | unknown |
