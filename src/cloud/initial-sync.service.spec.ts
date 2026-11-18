@@ -75,7 +75,8 @@ describe('InitialSyncService', () => {
 			listChanges: jest.fn().mockResolvedValue({
 				changes: [
 					{ providerFileId: 'file-1', removed: true },
-					{ providerFileId: 'file-2', removed: false, file: { providerFileId: 'file-2', name: 'new.pdf', category: 'document' } },
+					{ providerFileId: 'file-3', removed: false, file: { providerFileId: 'file-3', name: 'trashed.pdf', category: 'document', trashed: true } },
+					{ providerFileId: 'file-2', removed: false, file: { providerFileId: 'file-2', name: 'moved.pdf', category: 'document', parentId: 'new-folder' } },
 				],
 				newStartPageToken: 'cursor-2',
 			}),
@@ -93,11 +94,16 @@ describe('InitialSyncService', () => {
 			userId: new Types.ObjectId().toString(),
 			accountId: accountId.toString(),
 			syncJobId: syncJobId.toString(),
-		})).resolves.toEqual({ processedCount: 2, createdCount: 1, updatedCount: 0, deletedCount: 1 });
+		})).resolves.toEqual({ processedCount: 3, createdCount: 1, updatedCount: 0, deletedCount: 2 });
 
 		expect(fileModel.bulkWrite).toHaveBeenCalledWith(
 			expect.arrayContaining([
 				expect.objectContaining({ deleteOne: expect.any(Object) }),
+			expect.objectContaining({
+				updateOne: expect.objectContaining({
+					update: { $set: expect.objectContaining({ parentId: 'new-folder' }) },
+				}),
+			}),
 			]),
 			expect.objectContaining({ ordered: false }),
 		);
