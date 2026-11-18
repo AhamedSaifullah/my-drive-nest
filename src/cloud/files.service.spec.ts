@@ -82,6 +82,22 @@ describe('FilesService', () => {
 		expect(fileModel.findOne).toHaveBeenCalledWith({ _id: fileId, userId });
 	});
 
+	it('returns 404 when another user requests the file id', async () => {
+		const callerId = new Types.ObjectId();
+		const fileId = new Types.ObjectId();
+		const fileQuery = {
+			lean: jest.fn().mockReturnThis(),
+			exec: jest.fn().mockResolvedValue(null),
+		};
+		const fileModel = { findOne: jest.fn().mockReturnValue(fileQuery) };
+		const service = new FilesService(fileModel as never, {} as never, {} as never);
+
+		await expect(service.getById(callerId.toString(), fileId.toString())).rejects.toMatchObject({
+			status: 404,
+		});
+		expect(fileModel.findOne).toHaveBeenCalledWith({ _id: fileId, userId: callerId });
+	});
+
 	it('searches names using the text index and returns pagination', async () => {
 		const userId = new Types.ObjectId();
 		const findQuery = {
