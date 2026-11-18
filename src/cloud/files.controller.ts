@@ -1,5 +1,6 @@
 import { Controller, Get, Param, Query, Req, Res, UseGuards } from '@nestjs/common';
 import type { Response } from 'express';
+import { Readable } from 'node:stream';
 import { JwtAuthGuard } from '../user/jwt-auth.guard';
 import type { AuthenticatedRequest } from '../user/jwt-auth.guard';
 import { FilesService } from './files.service';
@@ -46,5 +47,25 @@ export class FilesController {
 			.type(thumbnail.contentType)
 			.set('Cache-Control', 'private, max-age=60')
 			.send(thumbnail.body);
+	}
+
+	@Get(':id/content')
+	async content(
+		@Param('id') fileId: string,
+		@Req() request: AuthenticatedRequest,
+		@Res() response: Response,
+	) {
+		const upstream = await this.filesService.getContent(
+			request.user.sub,
+			fileId,
+			request.headers.range,
+		);
+		response.status(upstream.status);
+		for (const header of ['content-type', 'content-length', 'content-range', 'accept-ranges', 'etag']) {
+			const value = upstream.headers.get(header);
+			if (value) response.setHeader(header, value);
+		}
+		if (!upstream.body) return response.end();
+		return Readable.fromWeb(upstream.body as never).pipe(response);
 	}
 }

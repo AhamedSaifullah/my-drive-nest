@@ -76,4 +76,26 @@ describe('GoogleProvider', () => {
 			retryAfterMs: 3000,
 		});
 	});
+
+	it('forwards a range request when downloading media', async () => {
+		const body = new ReadableStream<Uint8Array>({
+			start(controller) {
+				controller.enqueue(new Uint8Array([1, 2, 3]));
+				controller.close();
+			},
+		});
+		const fetchMock = jest.spyOn(global, 'fetch').mockResolvedValue({
+			ok: true,
+			status: 206,
+			body,
+			headers: new Headers({ 'content-range': 'bytes 0-2/10' }),
+		} as never);
+
+		await provider.downloadFile('access-token', 'file-1', 'bytes=0-2');
+
+		expect(fetchMock).toHaveBeenCalledWith(
+			expect.stringContaining('/files/file-1?alt=media'),
+			expect.objectContaining({ headers: { authorization: 'Bearer access-token', range: 'bytes=0-2' } }),
+		);
+	});
 });

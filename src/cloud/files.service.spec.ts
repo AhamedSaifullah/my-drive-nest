@@ -128,4 +128,22 @@ describe('FilesService', () => {
 		await expect(service.getThumbnail(userId.toString(), fileId.toString())).resolves.toMatchObject({ contentType: 'image/jpeg' });
 		expect(googleProvider.fetchThumbnail).toHaveBeenCalledTimes(1);
 	});
+
+	it('gets content through the provider with the requested range', async () => {
+		const userId = new Types.ObjectId();
+		const fileId = new Types.ObjectId();
+		const accountId = new Types.ObjectId();
+		const fileQuery = {
+			lean: jest.fn().mockReturnThis(),
+			exec: jest.fn().mockResolvedValue({ _id: fileId, userId, cloudAccountId: accountId, providerFileId: 'drive-file-1' }),
+		};
+		const upstream = { status: 206, body: new ReadableStream(), headers: new Headers() };
+		const fileModel = { findOne: jest.fn().mockReturnValue(fileQuery) };
+		const cloudService = { getGoogleAccessToken: jest.fn().mockResolvedValue('access-token') };
+		const googleProvider = { downloadFile: jest.fn().mockResolvedValue(upstream) };
+		const service = new FilesService(fileModel as never, cloudService as never, googleProvider as never);
+
+		await expect(service.getContent(userId.toString(), fileId.toString(), 'bytes=0-99')).resolves.toBe(upstream);
+		expect(googleProvider.downloadFile).toHaveBeenCalledWith('access-token', 'drive-file-1', 'bytes=0-99');
+	});
 });

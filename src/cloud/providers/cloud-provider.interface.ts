@@ -35,6 +35,6 @@ export interface CloudProvider {
 	listAllFiles(accessToken: string): AsyncGenerator<CloudProviderFile>;
 	getStartPageToken(accessToken: string): Promise<string>;
 	listChanges(accessToken: string, pageToken: string): Promise<CloudChangePage>;
-	downloadFile(accessToken: string, providerFileId: string): Promise<Response>;
+	downloadFile(accessToken: string, providerFileId: string, range?: string): Promise<Response>;
 	revoke(accessToken: string): Promise<void>;
 }

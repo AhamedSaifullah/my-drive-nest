@@ -69,10 +69,12 @@ export class GoogleProvider implements CloudProvider {
 		};
 	}
 
-	async downloadFile(accessToken: string, providerFileId: string) {
+	async downloadFile(accessToken: string, providerFileId: string, range?: string) {
+		const headers: Record<string, string> = { authorization: `Bearer ${accessToken}` };
+		if (range) headers.range = range;
 		const response = await fetch(
 			`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(providerFileId)}?alt=media`,
-			{ headers: { authorization: `Bearer ${accessToken}` } },
+			{ headers },
 		);
 		if (!response.ok) await this.throwProviderError(response, 'Google file download failed');
 		return response;

@@ -143,6 +143,18 @@ export class FilesService {
 		return result;
 	}
 
+	async getContent(userId: string, fileId: string, range?: string) {
+		if (!Types.ObjectId.isValid(fileId)) throw new BadRequestException('Invalid file id');
+		const file = await this.fileModel.findOne({
+			_id: new Types.ObjectId(fileId),
+			userId: this.toObjectId(userId, 'user id'),
+		}).lean().exec();
+		if (!file) throw new NotFoundException('File not found');
+
+		const accessToken = await this.cloudService.getGoogleAccessToken(userId, file.cloudAccountId.toString());
+		return this.googleProvider.downloadFile(accessToken, file.providerFileId, range);
+	}
+
 	private readonly thumbnailCache = new Map<string, { body: Buffer; contentType: string; expiresAt: number }>();
 
 	private buildFilter(userId: string, query: FileQuery) {
