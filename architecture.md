@@ -46,7 +46,7 @@ The current implementation covers registration, login, profile operations, logou
 | `refresh_sessions` | Hashed rotating refresh tokens and token families | IMPLEMENTED |
 | `cloud_accounts` | One linked provider account per user/provider | IMPLEMENTED |
 | `files` | Normalized provider file metadata | SCHEMA IMPLEMENTED; population PLANNED |
-| Sync processors | Initial and incremental synchronization | Initial Google sync IMPLEMENTED; incremental sync PLANNED |
+| Sync processors | Initial and incremental synchronization | Initial and incremental Google sync IMPLEMENTED |
 | Dropbox/Jio providers | Additional provider adapters | PLANNED |
 
 The cloud layer exposes a `CloudProvider` contract and a `GoogleProvider` adapter. Google Drive file listing requests metadata fields, filters `trashed = false`, includes folders, and exposes an async generator that follows every `nextPageToken`.
@@ -293,7 +293,7 @@ Before production:
 3. Add rate limiting to registration, login, refresh, link initiation, callback, and unlink routes.
 4. Add structured redacted logs, request correlation IDs, metrics, audit events, and alerting.
 5. Validate ObjectId inputs and convert provider errors into stable API errors.
-6. Add a background queue for initial and incremental sync, with retries, idempotency, backoff, and dead-letter handling.
+6. Add dead-letter handling and operational monitoring for the background sync queue; the queue, retries, idempotent initial sync, and incremental sync are implemented.
 7. Scope every file query through the authenticated user's cloud account ownership.
 8. Use HTTPS everywhere, restrict CORS to known clients, and avoid exposing provider tokens in URLs or response bodies.
 11. Add database cascade/cleanup workflows for account deletion and unlinking.
@@ -303,10 +303,9 @@ Before production:
 
 ### PLANNED
 
-- Provider interface and Google Drive adapter.
-- Google Drive initial sync and Changes API incremental sync.
-- BullMQ + Redis workers.
-- MIME and extension classification.
+- Google Drive initial sync and Changes API incremental sync. IMPLEMENTED
+- BullMQ + Redis workers. IMPLEMENTED
+- MIME classification. IMPLEMENTED
 - `GET /files` and `GET /files/summary`.
 - File streaming or short-lived provider download links.
 - Token refresh and re-link prompts.

@@ -32,6 +32,9 @@ export class CloudAccount {
 	@Prop({ type: Date })
 	expiresAt?: Date;
 
+	@Prop()
+	changesCursor?: string;
+
 	@Prop({ required: true, enum: ['active', 'needs_reauth', 'unlinked', 'revoked'], default: 'active' })
 	status!: 'active' | 'needs_reauth' | 'unlinked' | 'revoked';
 }

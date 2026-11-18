@@ -38,6 +38,14 @@ export class GoogleProvider implements CloudProvider {
 		} while (pageToken);
 	}
 
+	async getStartPageToken(accessToken: string) {
+		const body = await this.request<{ startPageToken: string }>(
+			'https://www.googleapis.com/drive/v3/changes/startPageToken',
+			accessToken,
+		);
+		return body.startPageToken;
+	}
+
 	async listChanges(accessToken: string, pageToken: string): Promise<CloudChangePage> {
 		const params = new URLSearchParams({
 			pageToken,

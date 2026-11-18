@@ -1,8 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Processor, WorkerHost } from '@nestjs/bullmq';
 import { Job } from 'bullmq';
-import { INITIAL_SYNC_JOB, SYNC_QUEUE, TEST_SYNC_JOB } from './queue.constants';
-import { InitialSyncJobData, TestSyncJobData } from './sync-queue.service';
+import { INCREMENTAL_SYNC_JOB, INITIAL_SYNC_JOB, SYNC_QUEUE, TEST_SYNC_JOB } from './queue.constants';
+import { IncrementalSyncJobData, InitialSyncJobData, TestSyncJobData } from './sync-queue.service';
 import { InitialSyncService } from '../cloud/initial-sync.service';
 
 @Injectable()
@@ -14,8 +14,9 @@ export class SyncProcessor extends WorkerHost {
 		super();
 	}
 
-	async process(job: Job<TestSyncJobData | InitialSyncJobData>) {
-		if (job.name === INITIAL_SYNC_JOB) {
+	async process(job: Job<TestSyncJobData | InitialSyncJobData | IncrementalSyncJobData>) {
+		if (job.name === INITIAL_SYNC_JOB || job.name === INCREMENTAL_SYNC_JOB) {
+			if (job.name === INCREMENTAL_SYNC_JOB) return this.initialSync.runIncremental(job.data as IncrementalSyncJobData);
 			return this.initialSync.run(job.data as InitialSyncJobData);
 		}
 		if (job.name === TEST_SYNC_JOB) {

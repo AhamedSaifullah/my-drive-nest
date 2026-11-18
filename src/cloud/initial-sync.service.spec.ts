@@ -11,6 +11,7 @@ describe('InitialSyncService', () => {
 		};
 		const accountModel = {
 			findOne: jest.fn().mockReturnValue({ exec: jest.fn().mockResolvedValue({ _id: accountId }) }),
+			updateOne: jest.fn().mockReturnValue({ exec: jest.fn().mockResolvedValue({}) }),
 		};
 		const syncJobModel = { updateOne };
 		const cloudService = {
@@ -20,7 +21,10 @@ describe('InitialSyncService', () => {
 			yield { providerFileId: 'file-1', name: 'photo.jpg', category: 'image' as const };
 			yield { providerFileId: 'file-2', name: 'notes.pdf', category: 'document' as const };
 		}
-		const googleProvider = { listAllFiles: jest.fn().mockReturnValue(files()) };
+		const googleProvider = {
+			listAllFiles: jest.fn().mockReturnValue(files()),
+			getStartPageToken: jest.fn().mockResolvedValue('cursor-1'),
+		};
 		const service = new InitialSyncService(
 			accountModel as never,
 			fileModel as never,
@@ -49,6 +53,57 @@ describe('InitialSyncService', () => {
 		expect(updateOne).toHaveBeenCalledWith(
 			expect.objectContaining({ _id: syncJobId }),
 			expect.objectContaining({ $set: expect.objectContaining({ status: 'completed' }) }),
+		);
+	});
+
+	it('applies incremental changes and advances the stored cursor', async () => {
+		const accountId = new Types.ObjectId();
+		const syncJobId = new Types.ObjectId();
+		const updateOne = jest.fn().mockReturnValue({ exec: jest.fn().mockResolvedValue({}) });
+		const accountModel = {
+			findOne: jest.fn().mockReturnValue({
+				exec: jest.fn().mockResolvedValue({ _id: accountId, changesCursor: 'cursor-1' }),
+			}),
+			updateOne,
+		};
+		const fileModel = {
+			bulkWrite: jest.fn().mockResolvedValue({ upsertedCount: 1, modifiedCount: 0 }),
+		};
+		const syncJobModel = { updateOne };
+		const cloudService = { getGoogleAccessToken: jest.fn().mockResolvedValue('access-token') };
+		const googleProvider = {
+			listChanges: jest.fn().mockResolvedValue({
+				changes: [
+					{ providerFileId: 'file-1', removed: true },
+					{ providerFileId: 'file-2', removed: false, file: { providerFileId: 'file-2', name: 'new.pdf', category: 'document' } },
+				],
+				newStartPageToken: 'cursor-2',
+			}),
+		};
+		const service = new InitialSyncService(
+			accountModel as never,
+			fileModel as never,
+			syncJobModel as never,
+			cloudService as never,
+			googleProvider as never,
+			{} as never,
+		);
+
+		await expect(service.runIncremental({
+			userId: new Types.ObjectId().toString(),
+			accountId: accountId.toString(),
+			syncJobId: syncJobId.toString(),
+		})).resolves.toEqual({ processedCount: 2, createdCount: 1, updatedCount: 0, deletedCount: 1 });
+
+		expect(fileModel.bulkWrite).toHaveBeenCalledWith(
+			expect.arrayContaining([
+				expect.objectContaining({ deleteOne: expect.any(Object) }),
+			]),
+			expect.objectContaining({ ordered: false }),
+		);
+		expect(accountModel.updateOne).toHaveBeenCalledWith(
+			expect.objectContaining({ _id: accountId }),
+			{ $set: { changesCursor: 'cursor-2' } },
 		);
 	});
 });

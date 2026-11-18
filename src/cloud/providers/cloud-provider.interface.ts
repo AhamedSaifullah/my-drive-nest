@@ -33,6 +33,7 @@ export interface CloudProvider {
 	readonly name: string;
 	listFiles(accessToken: string, pageToken?: string): Promise<CloudFilePage>;
 	listAllFiles(accessToken: string): AsyncGenerator<CloudProviderFile>;
+	getStartPageToken(accessToken: string): Promise<string>;
 	listChanges(accessToken: string, pageToken: string): Promise<CloudChangePage>;
 	downloadFile(accessToken: string, providerFileId: string): Promise<Response>;
 	revoke(accessToken: string): Promise<void>;
