@@ -9,6 +9,7 @@ import { CloudModule } from './cloud/cloud.module';
 import { RequestLoggingMiddleware } from './common/middleware/request-logging.middleware';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { validateEnvironment } from './config/env.validation';
+import { QueueModule } from './queue/queue.module';
 
 @Module({
 	imports: [
@@ -31,6 +32,7 @@ import { validateEnvironment } from './config/env.validation';
 		}),
 		UserModule,
 		CloudModule,
+		QueueModule,
 	],
 	controllers: [AppController],
 	providers: [

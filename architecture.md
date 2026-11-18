@@ -28,7 +28,7 @@ flowchart LR
   Queue -.-> Mongo
 ```
 
-The current implementation covers registration, login, profile operations, logout, Google account linking, account listing, unlinking, encryption, the OAuth state store, and the file schema. File synchronization, file APIs, provider refresh, Redis, and BullMQ are planned.
+The current implementation covers registration, login, profile operations, logout, Google account linking, account listing, unlinking, encryption, the OAuth state store, the file schema, and the Redis/BullMQ queue foundation. File synchronization and file APIs remain planned.
 
 ## 2. Module and responsibility map
 
@@ -46,7 +46,7 @@ The current implementation covers registration, login, profile operations, logou
 | `refresh_sessions` | Hashed rotating refresh tokens and token families | IMPLEMENTED |
 | `cloud_accounts` | One linked provider account per user/provider | IMPLEMENTED |
 | `files` | Normalized provider file metadata | SCHEMA IMPLEMENTED; population PLANNED |
-| Sync processors | Initial and incremental synchronization | PLANNED |
+| Sync processors | Initial and incremental synchronization | PLANNED; queue foundation IMPLEMENTED |
 | Dropbox/Jio providers | Additional provider adapters | PLANNED |
 
 The current cloud implementation calls Google through native `fetch`; it does not yet expose a provider interface or provider adapter classes.
@@ -249,6 +249,7 @@ The `files` collection is referenced rather than embedded because a user's file 
 | GET | `/cloud/google/accounts` | Bearer JWT | None | Account metadata without encrypted token fields | `401` |
 | POST | `/cloud/google/unlink` | Bearer JWT | None | `{ message: "Google Drive unlinked" }` | `401` |
 | DELETE | `/cloud/accounts/:id` | Bearer JWT | Cloud account ID in the path | `{ message: "Google Drive unlinked" }` | `400` invalid ID; `401`; `404` account not found |
+| POST | `/cloud/sync/test` | Bearer JWT | None | `{ jobId, queue, jobName }` | `401`; `503` Redis unavailable |
 
 Unlinking revokes the Google grant when possible, deletes synced `files`, marks the account `unlinked`, and removes locally stored encrypted token fields. The legacy `POST /cloud/google/unlink` route uses the same cleanup flow for the user's Google account.
 
@@ -257,6 +258,7 @@ Unlinking revokes the Google grant when possible, deletes synced `files`, marks 
 | Variable | Required | Meaning |
 |---|---:|---|
 | `MONGODB_URI` | Yes | MongoDB connection URI |
+| `REDIS_URL` | Yes | Redis connection URI used by BullMQ, for example `redis://localhost:6379` |
 | `JWT_SECRET` | Yes | Secret used to sign and verify My Drive JWTs and OAuth state |
 | `REFRESH_TOKEN_TTL_DAYS` | No | Refresh-session lifetime in days; defaults to `30` |
 | `PORT` | No | HTTP port; `3000` is the normal development value |

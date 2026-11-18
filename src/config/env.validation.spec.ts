@@ -2,6 +2,7 @@ import { validateEnvironment } from './env.validation';
 
 const validConfig = () => ({
 	MONGODB_URI: 'mongodb://localhost/my-drive',
+	REDIS_URL: 'redis://localhost:6379',
 	JWT_SECRET: 'a-long-development-secret',
 	GOOGLE_CLIENT_ID: 'client-id',
 	GOOGLE_CLIENT_SECRET: 'client-secret',
@@ -19,7 +20,7 @@ describe('validateEnvironment', () => {
 
 	it('reports all missing required variables', () => {
 		expect(() => validateEnvironment({})).toThrow(
-			'MONGODB_URI, JWT_SECRET, GOOGLE_CLIENT_ID',
+			'MONGODB_URI, REDIS_URL, JWT_SECRET',
 		);
 	});
 
