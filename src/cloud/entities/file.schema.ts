@@ -41,3 +41,4 @@ export const CloudFileSchema = SchemaFactory.createForClass(CloudFile);
 CloudFileSchema.index({ cloudAccountId: 1, providerFileId: 1 }, { unique: true });
 CloudFileSchema.index({ userId: 1, category: 1, modifiedAt: -1 });
 CloudFileSchema.index({ userId: 1, modifiedAt: -1 });
+CloudFileSchema.index({ name: 'text' });

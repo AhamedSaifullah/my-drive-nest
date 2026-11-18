@@ -23,6 +23,8 @@ Test coverage is marked `unknown` because no test execution or coverage report w
 | J21 | Browse files | `GET /files?category=&accountId=&page=&limit=&sort=&order=` | `files` read | IMPLEMENTED | unknown |
 | J22 | View file summary | `GET /files/summary?accountId=` | `files` aggregation | IMPLEMENTED | unknown |
 | J23 | View file metadata | `GET /files/:id` | `files` owner-scoped read | IMPLEMENTED | unknown |
+| J24 | Search files by name | `GET /files/search?q=` | `files` text-index read | IMPLEMENTED | unknown |
+| J25 | View file thumbnail | `GET /files/:id/thumbnail` | `files` read; Google Drive thumbnail request; process cache | IMPLEMENTED | unknown |
 | J15 | Browse by category | `GET /files?category=&page=` planned | `files` read | PLANNED | unknown |
 | J16 | View/download file | File endpoint planned | `files` read; provider read | PLANNED | unknown |
 | J17 | Dropbox/Jio Cloud | Provider endpoints planned | `cloud_accounts`, `files` planned | PLANNED | unknown |

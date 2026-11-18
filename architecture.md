@@ -254,6 +254,8 @@ The `files` collection is referenced rather than embedded because a user's file 
 | GET | `/files/summary` | Bearer JWT | Optional `accountId` query parameter | Total file count/size and counts/sizes for every category | `400` invalid account ID; `401` |
 | GET | `/files` | Bearer JWT | Optional `category`, `accountId`, `page`, `limit`, `sort`, `order` query parameters | Paginated file items and pagination metadata | `400` invalid query; `401` |
 | GET | `/files/:id` | Bearer JWT | File ID in the path | File metadata for the authenticated owner | `400` invalid ID; `401`; `404` not found/not owned |
+| GET | `/files/search` | Bearer JWT | `q` plus optional filters and pagination | Name-relevant file results | `400` missing/invalid query; `401` |
+| GET | `/files/:id/thumbnail` | Bearer JWT | File ID in the path | Proxied thumbnail bytes with a private 60-second cache header | `401`; `404`; provider error |
 | POST | `/cloud/sync/test` | Bearer JWT | None | `{ jobId, queue, jobName }` | `401`; `503` Redis unavailable |
 
 Unlinking revokes the Google grant when possible, deletes synced `files`, marks the account `unlinked`, and removes locally stored encrypted token fields. The legacy `POST /cloud/google/unlink` route uses the same cleanup flow for the user's Google account.

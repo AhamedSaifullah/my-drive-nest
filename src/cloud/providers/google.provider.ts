@@ -78,6 +78,17 @@ export class GoogleProvider implements CloudProvider {
 		return response;
 	}
 
+	async fetchThumbnail(accessToken: string, thumbnailUrl: string) {
+		const response = await fetch(thumbnailUrl, {
+			headers: { authorization: `Bearer ${accessToken}` },
+		});
+		if (!response.ok) await this.throwProviderError(response, 'Google thumbnail request failed');
+		return {
+			body: Buffer.from(await response.arrayBuffer()),
+			contentType: response.headers.get('content-type')?.split(';', 1)[0] ?? 'image/jpeg',
+		};
+	}
+
 	async revoke(accessToken: string) {
 		const response = await fetch('https://oauth2.googleapis.com/revoke', {
 			method: 'POST',

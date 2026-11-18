@@ -2,12 +2,15 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { CloudFile, FileCategory, FileDocument } from './entities/file.schema';
+import { CloudService } from './cloud.service';
+import { GoogleProvider } from './providers/google.provider';
 
 const CATEGORIES: FileCategory[] = ['image', 'video', 'audio', 'document', 'other'];
 const DEFAULT_LIMIT = 20;
 const MAX_LIMIT = 100;
 
 type FileQuery = {
+	q?: string;
 	category?: string;
 	accountId?: string;
 	page?: string;
@@ -21,6 +24,8 @@ export class FilesService {
 	constructor(
 		@InjectModel(CloudFile.name)
 		private readonly fileModel: Model<FileDocument>,
+		private readonly cloudService: CloudService,
+		private readonly googleProvider: GoogleProvider,
 	) {}
 
 	async list(userId: string, query: FileQuery) {
@@ -81,6 +86,34 @@ export class FilesService {
 		return { totalFiles, totalSize, categories };
 	}
 
+	async search(userId: string, query: FileQuery) {
+		const searchTerm = query.q?.trim();
+		if (!searchTerm) throw new BadRequestException('q is required');
+		const filter = { ...this.buildFilter(userId, query), $text: { $search: searchTerm } };
+		const page = this.parsePositiveInt(query.page, 1, 'page');
+		const limit = Math.min(this.parsePositiveInt(query.limit, DEFAULT_LIMIT, 'limit'), MAX_LIMIT);
+		const [items, total] = await Promise.all([
+			this.fileModel.find(filter)
+				.sort({ score: { $meta: 'textScore' }, modifiedAt: -1, _id: -1 })
+				.skip((page - 1) * limit)
+				.limit(limit)
+				.lean()
+				.exec(),
+			this.fileModel.countDocuments(filter).exec(),
+		]);
+		return {
+			items,
+			pagination: {
+				page,
+				limit,
+				total,
+				totalPages: total === 0 ? 0 : Math.ceil(total / limit),
+				hasNextPage: page * limit < total,
+				hasPreviousPage: page > 1,
+			},
+		};
+	}
+
 	async getById(userId: string, fileId: string) {
 		if (!Types.ObjectId.isValid(fileId)) throw new BadRequestException('Invalid file id');
 		const file = await this.fileModel.findOne({
@@ -90,6 +123,27 @@ export class FilesService {
 		if (!file) throw new NotFoundException('File not found');
 		return file;
 	}
+
+	async getThumbnail(userId: string, fileId: string) {
+		if (!Types.ObjectId.isValid(fileId)) throw new BadRequestException('Invalid file id');
+		const file = await this.fileModel.findOne({
+			_id: new Types.ObjectId(fileId),
+			userId: this.toObjectId(userId, 'user id'),
+		}).lean().exec();
+		if (!file?.thumbnailUrl) throw new NotFoundException('Thumbnail not found');
+
+		const cacheKey = `${userId}:${fileId}`;
+		const cached = this.thumbnailCache.get(cacheKey);
+		if (cached && cached.expiresAt > Date.now()) return cached;
+
+		const accessToken = await this.cloudService.getGoogleAccessToken(userId, file.cloudAccountId.toString());
+		const thumbnail = await this.googleProvider.fetchThumbnail(accessToken, file.thumbnailUrl);
+		const result = { ...thumbnail, expiresAt: Date.now() + 60_000 };
+		this.thumbnailCache.set(cacheKey, result);
+		return result;
+	}
+
+	private readonly thumbnailCache = new Map<string, { body: Buffer; contentType: string; expiresAt: number }>();
 
 	private buildFilter(userId: string, query: FileQuery) {
 		const filter: Record<string, unknown> = { userId: this.toObjectId(userId, 'user id') };
