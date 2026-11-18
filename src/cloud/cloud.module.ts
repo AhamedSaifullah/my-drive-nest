@@ -11,11 +11,15 @@ import { OAuthState, OAuthStateSchema } from './entities/oauth-state.schema';
 import { SyncJob, SyncJobSchema } from './entities/sync-job.schema';
 import { TokenEncryptionService } from './token-encryption.service';
 import { GoogleProvider } from './providers/google.provider';
+import { QueueModule } from '../queue/queue.module';
+import { InitialSyncService } from './initial-sync.service';
+import { SyncProcessor } from '../queue/sync.processor';
 
 @Module({
 	imports: [
 		ConfigModule,
 		UserModule,
+		QueueModule,
 		MongooseModule.forFeature([
 			{ name: CloudAccount.name, schema: CloudAccountSchema },
 			{ name: CloudFile.name, schema: CloudFileSchema },
@@ -24,6 +28,6 @@ import { GoogleProvider } from './providers/google.provider';
 		]),
 	],
 	controllers: [CloudController, CloudAccountsController],
-	providers: [CloudService, TokenEncryptionService, GoogleProvider],
+	providers: [CloudService, TokenEncryptionService, GoogleProvider, InitialSyncService, SyncProcessor],
 })
 export class CloudModule {}

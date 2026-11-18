@@ -3,7 +3,6 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { BullModule } from '@nestjs/bullmq';
 import { QueueController } from './queue.controller';
 import { SyncQueueService } from './sync-queue.service';
-import { SyncProcessor } from './sync.processor';
 import { SYNC_QUEUE } from './queue.constants';
 import { UserModule } from '../user/user.module';
 
@@ -39,7 +38,7 @@ function redisConnection(redisUrl: string) {
 		BullModule.registerQueue({ name: SYNC_QUEUE }),
 	],
 	controllers: [QueueController],
-	providers: [SyncQueueService, SyncProcessor],
+	providers: [SyncQueueService],
 	exports: [SyncQueueService],
 })
 export class QueueModule {}

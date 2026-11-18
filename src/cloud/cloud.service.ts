@@ -14,7 +14,9 @@ import { Response } from 'express';
 import { CloudAccount, CloudAccountDocument } from './entities/cloud-account.schema';
 import { CloudFile, FileDocument } from './entities/file.schema';
 import { OAuthState, OAuthStateDocument } from './entities/oauth-state.schema';
+import { SyncJob, SyncJobDocument } from './entities/sync-job.schema';
 import { TokenEncryptionService } from './token-encryption.service';
+import { SyncQueueService } from '../queue/sync-queue.service';
 
 type GoogleTokenResponse = {
 	access_token: string;
@@ -40,9 +42,12 @@ export class CloudService {
 		private readonly oauthStateModel: Model<OAuthStateDocument>,
 		@InjectModel(CloudFile.name)
 		private readonly fileModel: Model<FileDocument>,
+		@InjectModel(SyncJob.name)
+		private readonly syncJobModel: Model<SyncJobDocument>,
 		private readonly config: ConfigService,
 		private readonly jwtService: JwtService,
 		private readonly tokenEncryption: TokenEncryptionService,
+		private readonly syncQueue: SyncQueueService,
 	) {}
 
 	async createGoogleAuthorizationUrl(userId: string) {
@@ -138,7 +143,7 @@ export class CloudService {
 			}
 			const encryptedAccessToken = this.tokenEncryption.encrypt(tokens.access_token);
 			const encryptedRefreshToken = this.tokenEncryption.encrypt(tokens.refresh_token);
-			await this.accountModel.findOneAndUpdate(
+			const account = await this.accountModel.findOneAndUpdate(
 				{ userId: new Types.ObjectId(payload.sub), provider: 'google' },
 				{
 					userId: new Types.ObjectId(payload.sub), provider: 'google', providerAccountId: profile.sub,
@@ -151,6 +156,17 @@ export class CloudService {
 				},
 				{ upsert: true, new: true, setDefaultsOnInsert: true },
 			).exec();
+			if (!account) throw new Error('Google account could not be saved');
+			const syncJob = await this.syncJobModel.create({
+				cloudAccountId: account._id,
+				type: 'initial',
+				status: 'queued',
+			});
+			await this.syncQueue.enqueueInitialSync({
+				userId: payload.sub,
+				accountId: account._id.toString(),
+				syncJobId: syncJob._id.toString(),
+			});
 			return this.redirect(response, 'provider=google');
 		} catch (cause) {
 			this.logger.error(

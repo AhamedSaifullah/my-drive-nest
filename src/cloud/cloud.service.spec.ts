@@ -15,6 +15,12 @@ describe('CloudService', () => {
 		create: jest.fn(),
 		findOneAndDelete: jest.fn(),
 	};
+	const syncJobModel = {
+		create: jest.fn(),
+	};
+	const syncQueue = {
+		enqueueInitialSync: jest.fn(),
+	};
 	const fileModel = {};
 	const jwtService = {
 		signAsync: jest.fn(),
@@ -32,6 +38,7 @@ describe('CloudService', () => {
 			accountModel as never,
 			oauthStateModel as never,
 			fileModel as never,
+			syncJobModel as never,
 			new ConfigService({
 				GOOGLE_CLIENT_ID: 'client-id',
 				GOOGLE_CLIENT_SECRET: 'client-secret',
@@ -42,6 +49,7 @@ describe('CloudService', () => {
 			}),
 			jwtService as unknown as JwtService,
 			tokenEncryption as never,
+			syncQueue as never,
 		);
 	});
 

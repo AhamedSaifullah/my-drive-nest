@@ -1,4 +1,3 @@
-import { SyncProcessor } from './sync.processor';
 import { SyncQueueService } from './sync-queue.service';
 
 describe('sync queue', () => {
@@ -17,13 +16,4 @@ describe('sync queue', () => {
 		);
 	});
 
-	it('processes a test sync job', async () => {
-		const processor = new SyncProcessor();
-
-		await expect(processor.process({
-			name: 'test-sync',
-			id: 'job-1',
-			data: { userId: 'user-1', requestedAt: new Date().toISOString() },
-		} as never)).resolves.toEqual({ processed: true, jobId: 'job-1' });
-	});
 });

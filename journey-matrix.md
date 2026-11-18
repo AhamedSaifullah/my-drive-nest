@@ -17,7 +17,7 @@ Test coverage is marked `unknown` because no test execution or coverage report w
 | J11 | List linked accounts | `GET /cloud/google/accounts` | `cloud_accounts` read | IMPLEMENTED | unknown |
 | J12 | Unlink Google account | `DELETE /cloud/accounts/:id` (legacy `POST /cloud/google/unlink`) | `cloud_accounts` update; `files` delete | IMPLEMENTED | unknown |
 | J13 | Expired/revoked provider token | Internal `CloudService.getGoogleAccessToken`; future sync/re-link | `cloud_accounts` refresh/status update | PARTIAL | unknown |
-| J14 | Initial sync/classification | Queue foundation; future worker | `sync_jobs` schema; `cloud_accounts` read; `files` write | PLANNED | unknown |
+| J14 | Initial sync/classification | Initial sync queue worker | `sync_jobs` read/write; `cloud_accounts` read; `files` bulk upsert | IMPLEMENTED | unknown |
 | J15 | Browse by category | `GET /files?category=&page=` planned | `files` read | PLANNED | unknown |
 | J16 | View/download file | File endpoint planned | `files` read; provider read | PLANNED | unknown |
 | J17 | Dropbox/Jio Cloud | Provider endpoints planned | `cloud_accounts`, `files` planned | PLANNED | unknown |

@@ -46,7 +46,7 @@ The current implementation covers registration, login, profile operations, logou
 | `refresh_sessions` | Hashed rotating refresh tokens and token families | IMPLEMENTED |
 | `cloud_accounts` | One linked provider account per user/provider | IMPLEMENTED |
 | `files` | Normalized provider file metadata | SCHEMA IMPLEMENTED; population PLANNED |
-| Sync processors | Initial and incremental synchronization | PLANNED; queue foundation and Google provider adapter IMPLEMENTED |
+| Sync processors | Initial and incremental synchronization | Initial Google sync IMPLEMENTED; incremental sync PLANNED |
 | Dropbox/Jio providers | Additional provider adapters | PLANNED |
 
 The cloud layer exposes a `CloudProvider` contract and a `GoogleProvider` adapter. Google Drive file listing requests metadata fields, filters `trashed = false`, includes folders, and exposes an async generator that follows every `nextPageToken`.
