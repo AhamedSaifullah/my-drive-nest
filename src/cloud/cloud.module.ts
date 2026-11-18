@@ -16,6 +16,8 @@ import { InitialSyncService } from './initial-sync.service';
 import { SyncProcessor } from '../queue/sync.processor';
 import { SyncController } from './sync.controller';
 import { SyncScheduler } from './sync.scheduler';
+import { FilesController } from './files.controller';
+import { FilesService } from './files.service';
 
 @Module({
 	imports: [
@@ -29,7 +31,7 @@ import { SyncScheduler } from './sync.scheduler';
 			{ name: SyncJob.name, schema: SyncJobSchema },
 		]),
 	],
-	controllers: [CloudController, CloudAccountsController, SyncController],
-	providers: [CloudService, TokenEncryptionService, GoogleProvider, InitialSyncService, SyncProcessor, SyncScheduler],
+	controllers: [CloudController, CloudAccountsController, SyncController, FilesController],
+	providers: [CloudService, TokenEncryptionService, GoogleProvider, InitialSyncService, SyncProcessor, SyncScheduler, FilesService],
 })
 export class CloudModule {}
